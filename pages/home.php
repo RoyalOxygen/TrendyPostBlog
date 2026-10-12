@@ -90,9 +90,9 @@ $relevantStories = getRelevantStories($featuredPosts, $latestPosts, 3);
 // SEO
 $pageTitle = Setting::get('seo_default_title');
 $pageDescription = Setting::get('seo_default_description');
-$canonicalUrl = canonical_url();
+$canonicalUrl = rtrim(BASE_URL, '/') . '/';
 
-$seoMeta = meta_tags($pageTitle, $pageDescription, Setting::get('seo_default_keywords'));
+$seoMeta = meta_tags($pageTitle, $pageDescription, Setting::get('seo_default_keywords'), Setting::get('seo_default_robots', 'index,follow'));
 $ogTags = og_tags([
     'title' => $pageTitle,
     'description' => $pageDescription,
@@ -155,19 +155,16 @@ include INCLUDES_PATH . 'Header.php';
                 <!-- Main Featured Post (Left - Large) -->
                 <div class="col-lg-8">
                     <?php $main = $featuredPosts[0]; 
-                    $img = $main['featured_image'] ? upload_url($main['featured_image']) : image_url('placeholder.jpg');
-                    $catColor = $main['category_color'] ?? '#00C853';
+                    $img = media_url($main['featured_image']);
                     $publishedDate = !empty($main['published_at']) ? date('F j, Y', strtotime($main['published_at'])) : 'Just now';
                     ?>
                     <article class="featured-large">
                         <img src="<?php echo $img; ?>" alt="<?php echo esc_attr($main['title']); ?>" loading="lazy">
-                        <span class="category-badge" style="background-color:<?php echo $catColor; ?>">
-                            <?php echo $main['category_name'] ?? 'News'; ?>
-                        </span>
+                        <?php echo category_badge_html($main); ?>
                         <div class="overlay">
-                            <h3><a href="<?php echo post_url($main['slug']); ?>"><?php echo $main['title']; ?></a></h3>
+                            <h3><a href="<?php echo post_url($main['slug']); ?>"><?php echo esc($main['title']); ?></a></h3>
                             <div class="post-meta">
-                                <span><i class="bi bi-person"></i> <?php echo $main['author_name'] ?? 'Admin'; ?></span>
+                                <span><i class="bi bi-person"></i> <?php echo esc($main['author_name'] ?? 'Admin'); ?></span>
                                 <span><i class="bi bi-calendar3"></i> <?php echo $publishedDate; ?></span>
                                 <?php if (isset($main['comment_count'])): ?>
                                 <span><i class="bi bi-chat"></i> <?php echo $main['comment_count']; ?> Comments</span>
@@ -182,20 +179,17 @@ include INCLUDES_PATH . 'Header.php';
                     <div class="row g-3">
                         <?php for ($i = 1; $i <= 2; $i++): if (!isset($featuredPosts[$i])) break; 
                         $side = $featuredPosts[$i];
-                        $sImg = $side['featured_image'] ? upload_url($side['featured_image']) : image_url('placeholder.jpg');
-                        $sCatColor = $side['category_color'] ?? '#00C853';
+                        $sImg = media_url($side['featured_image']);
                         $sideDate = !empty($side['published_at']) ? date('M j, Y', strtotime($side['published_at'])) : 'Just now';
                         ?>
                         <div class="col-12">
                             <article class="featured-large" style="min-height: 195px;">
                                 <img src="<?php echo $sImg; ?>" alt="<?php echo esc_attr($side['title']); ?>" loading="lazy">
-                                <span class="category-badge" style="background-color:<?php echo $sCatColor; ?>">
-                                    <?php echo $side['category_name'] ?? 'News'; ?>
-                                </span>
+                                <?php echo category_badge_html($side); ?>
                                 <div class="overlay" style="padding: 40px 20px 20px;">
-                                    <h3 style="font-size: 15px;"><a href="<?php echo post_url($side['slug']); ?>"><?php echo $side['title']; ?></a></h3>
+                                    <h3 style="font-size: 15px;"><a href="<?php echo post_url($side['slug']); ?>"><?php echo esc($side['title']); ?></a></h3>
                                     <div class="post-meta" style="font-size: 11px;">
-                                        <span><i class="bi bi-person"></i> <?php echo $side['author_name'] ?? 'Admin'; ?></span>
+                                        <span><i class="bi bi-person"></i> <?php echo esc($side['author_name'] ?? 'Admin'); ?></span>
                                         <span><i class="bi bi-calendar3"></i> <?php echo $sideDate; ?></span>
                                     </div>
                                 </div>
@@ -216,10 +210,9 @@ include INCLUDES_PATH . 'Header.php';
                 <!-- Latest News Section -->
                 <section class="latest-news mb-4">
                     <h4 class="section-title mb-4">Latest News</h4>
-                    
-                    <?php foreach ($latestPosts as $post): 
-                        $pImg = $post['featured_image'] ? upload_url($post['featured_image']) : image_url('placeholder.jpg');
-                        $pCatColor = $post['category_color'] ?? '#00C853';
+                    <?php $infeedShown = false; $latestIndex = 0; ?>
+                    <?php foreach ($latestPosts as $post): $latestIndex++;
+                        $pImg = media_url($post['featured_image']);
                         $postDate = !empty($post['published_at']) ? date('F j, Y', strtotime($post['published_at'])) : 'Just now';
                         $timeAgo = !empty($post['published_at']) ? time_ago($post['published_at']) : 'Just now';
                     ?>
@@ -228,9 +221,7 @@ include INCLUDES_PATH . 'Header.php';
                             <div class="col-md-4">
                                 <div class="card-img-wrapper" style="padding-top: 75%;">
                                     <img src="<?php echo $pImg; ?>" alt="<?php echo esc_attr($post['title']); ?>" loading="lazy">
-                                    <span class="category-badge" style="background-color:<?php echo $pCatColor; ?>">
-                                        <?php echo $post['category_name'] ?? 'News'; ?>
-                                    </span>
+                                    <?php echo category_badge_html($post); ?>
                                     <?php if ($post['is_breaking'] ?? 0): ?>
                                         <span class="breaking-badge">BREAKING</span>
                                     <?php endif; ?>
@@ -239,18 +230,25 @@ include INCLUDES_PATH . 'Header.php';
                             <div class="col-md-8">
                                 <div class="card-body">
                                     <h5 class="card-title">
-                                        <a href="<?php echo post_url($post['slug']); ?>"><?php echo $post['title']; ?></a>
+                                        <a href="<?php echo post_url($post['slug']); ?>"><?php echo esc($post['title']); ?></a>
                                     </h5>
                                     <div class="post-meta mb-2">
-                                        <span><i class="bi bi-person"></i> <?php echo $post['author_name'] ?? 'Admin'; ?></span>
+                                        <span><i class="bi bi-person"></i> <?php echo esc($post['author_name'] ?? 'Admin'); ?></span>
                                         <span><i class="bi bi-calendar3"></i> <?php echo $postDate; ?> <span class="text-muted">(<?php echo $timeAgo; ?>)</span></span>
-                                        <span><i class="bi bi-chat"></i> <?php echo $post['comment_count'] ?? 0; ?> Comments</span>
+                                        <span><i class="bi bi-chat"></i> <?php echo (int) ($post['comment_count'] ?? 0); ?> Comments</span>
                                     </div>
                                     <p class="card-text"><?php echo excerpt($post['excerpt'] ?? $post['content'], 160); ?></p>
                                 </div>
                             </div>
                         </div>
                     </article>
+                    <?php if (!$infeedShown && $latestIndex === min(2, max(1, count($latestPosts)))):
+                        $infeedAds = get_ads('native_infeed', 1);
+                        if (!empty($infeedAds)) {
+                            echo native_ad_card($infeedAds[0]);
+                            $infeedShown = true;
+                        }
+                    endif; ?>
                     <?php endforeach; ?>
                 </section>
                 
@@ -270,21 +268,18 @@ include INCLUDES_PATH . 'Header.php';
                     
                     <!-- First popular post - large style -->
                     <?php if (!empty($popularPosts)): $pop1 = $popularPosts[0]; 
-                    $popImg = $pop1['featured_image'] ? upload_url($pop1['featured_image']) : image_url('placeholder.jpg');
-                    $popCatColor = $pop1['category_color'] ?? '#00C853';
+                    $popImg = media_url($pop1['featured_image']);
                     $popDate = !empty($pop1['published_at']) ? date('F j, Y', strtotime($pop1['published_at'])) : 'Just now';
                     ?>
                     <article class="post-card mb-4">
                         <div class="card-img-wrapper" style="padding-top: 45%;">
                             <img src="<?php echo $popImg; ?>" alt="<?php echo esc_attr($pop1['title']); ?>" loading="lazy">
-                            <span class="category-badge" style="background-color:<?php echo $popCatColor; ?>">
-                                <?php echo $pop1['category_name'] ?? 'News'; ?>
-                            </span>
+                            <?php echo category_badge_html($pop1); ?>
                         </div>
                         <div class="card-body">
-                            <h5 class="card-title"><a href="<?php echo post_url($pop1['slug']); ?>"><?php echo $pop1['title']; ?></a></h5>
+                            <h5 class="card-title"><a href="<?php echo post_url($pop1['slug']); ?>"><?php echo esc($pop1['title']); ?></a></h5>
                             <div class="post-meta">
-                                <span><i class="bi bi-person"></i> <?php echo $pop1['author_name'] ?? 'Admin'; ?></span>
+                                <span><i class="bi bi-person"></i> <?php echo esc($pop1['author_name'] ?? 'Admin'); ?></span>
                                 <span><i class="bi bi-calendar3"></i> <?php echo $popDate; ?></span>
                                 <span><i class="bi bi-chat"></i> <?php echo $pop1['comment_count'] ?? 0; ?> Comments</span>
                                 <span><i class="bi bi-eye"></i> <?php echo format_number($pop1['view_count'] ?? 0); ?> views</span>
@@ -297,25 +292,22 @@ include INCLUDES_PATH . 'Header.php';
                     <div class="row">
                         <?php for ($i = 1; $i < min(3, count($popularPosts)); $i++): 
                         $pop = $popularPosts[$i];
-                        $pImg = $pop['featured_image'] ? upload_url($pop['featured_image']) : image_url('placeholder.jpg');
-                        $pCatColor = $pop['category_color'] ?? '#00C853';
+                        $pImg = media_url($pop['featured_image']);
                         $popDate = !empty($pop['published_at']) ? date('M j, Y', strtotime($pop['published_at'])) : 'Just now';
                         ?>
                         <div class="col-md-6">
                             <article class="post-card mb-4">
                                 <div class="card-img-wrapper">
                                     <img src="<?php echo $pImg; ?>" alt="<?php echo esc_attr($pop['title']); ?>" loading="lazy">
-                                    <span class="category-badge" style="background-color:<?php echo $pCatColor; ?>">
-                                        <?php echo $pop['category_name'] ?? 'News'; ?>
-                                    </span>
+                                    <?php echo category_badge_html($pop); ?>
                                 </div>
                                 <div class="card-body">
                                     <h5 class="card-title" style="font-size: 15px;">
-                                        <a href="<?php echo post_url($pop['slug']); ?>"><?php echo $pop['title']; ?></a>
+                                        <a href="<?php echo post_url($pop['slug']); ?>"><?php echo esc($pop['title']); ?></a>
                                     </h5>
                                     <p class="card-text" style="font-size: 13px;"><?php echo excerpt($pop['excerpt'] ?? $pop['content'], 120); ?></p>
                                     <div class="post-meta">
-                                        <span><i class="bi bi-person"></i> <?php echo $pop['author_name'] ?? 'Admin'; ?></span>
+                                        <span><i class="bi bi-person"></i> <?php echo esc($pop['author_name'] ?? 'Admin'); ?></span>
                                         <span><i class="bi bi-calendar3"></i> <?php echo $popDate; ?></span>
                                     </div>
                                 </div>
@@ -333,8 +325,7 @@ include INCLUDES_PATH . 'Header.php';
                     // Check if we have relevant stories
                     if (!empty($relevantStories)): 
                         foreach ($relevantStories as $post): 
-                            $rImg = $post['featured_image'] ? upload_url($post['featured_image']) : image_url('placeholder.jpg');
-                            $rCatColor = $post['category_color'] ?? '#00C853';
+                            $rImg = media_url($post['featured_image']);
                             $rDate = !empty($post['published_at']) ? date('F j, Y', strtotime($post['published_at'])) : 'Just now';
                             $rTimeAgo = !empty($post['published_at']) ? time_ago($post['published_at']) : 'Just now';
                     ?>
@@ -343,9 +334,7 @@ include INCLUDES_PATH . 'Header.php';
                             <div class="col-md-4">
                                 <div class="card-img-wrapper" style="padding-top: 75%;">
                                     <img src="<?php echo $rImg; ?>" alt="<?php echo esc_attr($post['title']); ?>" loading="lazy">
-                                    <span class="category-badge" style="background-color:<?php echo $rCatColor; ?>">
-                                        <?php echo $post['category_name'] ?? 'News'; ?>
-                                    </span>
+                                    <?php echo category_badge_html($post); ?>
                                     <?php if ($post['is_breaking'] ?? 0): ?>
                                         <span class="breaking-badge">BREAKING</span>
                                     <?php endif; ?>
@@ -354,12 +343,12 @@ include INCLUDES_PATH . 'Header.php';
                             <div class="col-md-8">
                                 <div class="card-body">
                                     <h5 class="card-title">
-                                        <a href="<?php echo post_url($post['slug']); ?>"><?php echo $post['title']; ?></a>
+                                        <a href="<?php echo post_url($post['slug']); ?>"><?php echo esc($post['title']); ?></a>
                                     </h5>
                                     <div class="post-meta mb-2">
-                                        <span><i class="bi bi-person"></i> <?php echo $post['author_name'] ?? 'Admin'; ?></span>
+                                        <span><i class="bi bi-person"></i> <?php echo esc($post['author_name'] ?? 'Admin'); ?></span>
                                         <span><i class="bi bi-calendar3"></i> <?php echo $rDate; ?> <span class="text-muted">(<?php echo $rTimeAgo; ?>)</span></span>
-                                        <span><i class="bi bi-chat"></i> <?php echo $post['comment_count'] ?? 0; ?> Comments</span>
+                                        <span><i class="bi bi-chat"></i> <?php echo (int) ($post['comment_count'] ?? 0); ?> Comments</span>
                                         <?php if (!empty($post['view_count'])): ?>
                                             <span><i class="bi bi-eye"></i> <?php echo format_number($post['view_count']); ?> views</span>
                                         <?php endif; ?>
@@ -373,9 +362,8 @@ include INCLUDES_PATH . 'Header.php';
                     else: 
                         // Fallback: show latest posts if no relevant stories
                         $fallbackPosts = array_slice($latestPosts, 3, 3);
-                        foreach ($fallbackPosts as $post): 
-                            $rImg = $post['featured_image'] ? upload_url($post['featured_image']) : image_url('placeholder.jpg');
-                            $rCatColor = $post['category_color'] ?? '#00C853';
+                         foreach ($fallbackPosts as $post): 
+                            $rImg = media_url($post['featured_image']);
                             $rDate = !empty($post['published_at']) ? date('F j, Y', strtotime($post['published_at'])) : 'Just now';
                             $rTimeAgo = !empty($post['published_at']) ? time_ago($post['published_at']) : 'Just now';
                     ?>
@@ -384,18 +372,16 @@ include INCLUDES_PATH . 'Header.php';
                             <div class="col-md-4">
                                 <div class="card-img-wrapper" style="padding-top: 75%;">
                                     <img src="<?php echo $rImg; ?>" alt="<?php echo esc_attr($post['title']); ?>" loading="lazy">
-                                    <span class="category-badge" style="background-color:<?php echo $rCatColor; ?>">
-                                        <?php echo $post['category_name'] ?? 'News'; ?>
-                                    </span>
+                                    <?php echo category_badge_html($post); ?>
                                 </div>
                             </div>
                             <div class="col-md-8">
                                 <div class="card-body">
                                     <h5 class="card-title">
-                                        <a href="<?php echo post_url($post['slug']); ?>"><?php echo $post['title']; ?></a>
+                                        <a href="<?php echo post_url($post['slug']); ?>"><?php echo esc($post['title']); ?></a>
                                     </h5>
                                     <div class="post-meta mb-2">
-                                        <span><i class="bi bi-person"></i> <?php echo $post['author_name'] ?? 'Admin'; ?></span>
+                                        <span><i class="bi bi-person"></i> <?php echo esc($post['author_name'] ?? 'Admin'); ?></span>
                                         <span><i class="bi bi-calendar3"></i> <?php echo $rDate; ?> <span class="text-muted">(<?php echo $rTimeAgo; ?>)</span></span>
                                         <span><i class="bi bi-chat"></i> <?php echo $post['comment_count'] ?? 0; ?> Comments</span>
                                     </div>
@@ -411,6 +397,12 @@ include INCLUDES_PATH . 'Header.php';
             
             <!-- Right Column - Sidebar -->
             <aside class="col-lg-4">
+                <?php $dsAds = get_ads('desktop_sidebar', 1); if (!empty($dsAds)): ?>
+                <div class="ad-container ad-sidebar d-none d-lg-block mb-4">
+                    <div class="ad-label">Advertisement</div>
+                    <?php echo render_ad($dsAds[0]); ?>
+                </div>
+                <?php endif; ?>
 
                 <!-- Editor's Pick Widget -->
                 <div class="widget editors-pick-widget">
@@ -418,18 +410,16 @@ include INCLUDES_PATH . 'Header.php';
                     
                     <?php $editorsPick = !empty($popularPosts[0]) ? $popularPosts[0] : ($latestPosts[0] ?? null); ?>
                     <?php if ($editorsPick): 
-                        $edImg = $editorsPick['featured_image'] ? upload_url($editorsPick['featured_image']) : image_url('placeholder.jpg');
+                        $edImg = media_url($editorsPick['featured_image']);
                         $edDate = !empty($editorsPick['published_at']) ? date('M j, Y', strtotime($editorsPick['published_at'])) : 'Just now';
                     ?>
                     <div class="editors-pick-featured">
                         <img src="<?php echo $edImg; ?>" alt="<?php echo esc_attr($editorsPick['title']); ?>" loading="lazy">
                         <div class="overlay">
-                            <span class="category-badge" style="background-color:<?php echo $editorsPick['category_color'] ?? '#00C853'; ?>">
-                                <?php echo $editorsPick['category_name'] ?? 'Featured'; ?>
-                            </span>
-                            <h6><a href="<?php echo post_url($editorsPick['slug']); ?>"><?php echo $editorsPick['title']; ?></a></h6>
+                            <?php echo category_badge_html($editorsPick, 'Featured'); ?>
+                            <h6><a href="<?php echo post_url($editorsPick['slug']); ?>"><?php echo esc($editorsPick['title']); ?></a></h6>
                             <div class="post-meta">
-                                <span><i class="bi bi-person"></i> <?php echo $editorsPick['author_name'] ?? 'Admin'; ?></span>
+                                <span><i class="bi bi-person"></i> <?php echo esc($editorsPick['author_name'] ?? 'Admin'); ?></span>
                                 <span><i class="bi bi-calendar3"></i> <?php echo $edDate; ?></span>
                             </div>
                             <p style="font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 5px;">
@@ -441,7 +431,7 @@ include INCLUDES_PATH . 'Header.php';
                     
                     <!-- Small editor's picks -->
                     <?php foreach (array_slice($popularPosts, 1, 3) as $ep): 
-                        $epImg = $ep['featured_image'] ? upload_url($ep['featured_image']) : image_url('placeholder.jpg');
+                        $epImg = media_url($ep['featured_image']);
                         $epDate = !empty($ep['published_at']) ? date('M j, Y', strtotime($ep['published_at'])) : 'Just now';
                     ?>
                     <div class="sidebar-post">
@@ -449,7 +439,8 @@ include INCLUDES_PATH . 'Header.php';
                             <img src="<?php echo $epImg; ?>" alt="<?php echo esc_attr($ep['title']); ?>" loading="lazy">
                         </div>
                         <div class="post-info">
-                            <h6><a href="<?php echo post_url($ep['slug']); ?>"><?php echo $ep['title']; ?></a></h6>
+                            <?php echo category_badge_html($ep); ?>
+                            <h6><a href="<?php echo post_url($ep['slug']); ?>"><?php echo esc($ep['title']); ?></a></h6>
                             <div class="post-meta">
                                 <span><i class="bi bi-calendar3"></i> <?php echo $epDate; ?></span>
                             </div>
@@ -463,7 +454,7 @@ include INCLUDES_PATH . 'Header.php';
                     <h5 class="widget-title">Most Popular</h5>
                     
                     <?php foreach (array_slice($popularPosts, 0, 4) as $mp): 
-                        $mpImg = $mp['featured_image'] ? upload_url($mp['featured_image']) : image_url('placeholder.jpg');
+                        $mpImg = media_url($mp['featured_image']);
                         $mpDate = !empty($mp['published_at']) ? date('M j, Y', strtotime($mp['published_at'])) : 'Just now';
                     ?>
                     <div class="sidebar-post">
@@ -471,7 +462,8 @@ include INCLUDES_PATH . 'Header.php';
                             <img src="<?php echo $mpImg; ?>" alt="<?php echo esc_attr($mp['title']); ?>" loading="lazy">
                         </div>
                         <div class="post-info">
-                            <h6><a href="<?php echo post_url($mp['slug']); ?>"><?php echo $mp['title']; ?></a></h6>
+                            <?php echo category_badge_html($mp); ?>
+                            <h6><a href="<?php echo post_url($mp['slug']); ?>"><?php echo esc($mp['title']); ?></a></h6>
                             <div class="post-meta">
                                 <span><i class="bi bi-calendar3"></i> <?php echo $mpDate; ?></span>
                                 <span><i class="bi bi-eye"></i> <?php echo format_number($mp['view_count'] ?? 0); ?></span>
@@ -480,6 +472,13 @@ include INCLUDES_PATH . 'Header.php';
                     </div>
                     <?php endforeach; ?>
                 </div>
+
+                <?php $sbAds = get_ads('sidebar_bottom', 1); if (!empty($sbAds)): ?>
+                <div class="ad-container ad-sidebar mb-4">
+                    <div class="ad-label">Advertisement</div>
+                    <?php echo render_ad($sbAds[0]); ?>
+                </div>
+                <?php endif; ?>
                 
                 <!-- Sticky Sidebar Ad -->
                 <?php $stickyAds = get_ads('sticky_sidebar', 1); if (!empty($stickyAds)): ?>
@@ -526,7 +525,7 @@ include INCLUDES_PATH . 'Header.php';
                     <div class="category-list-item">
                         <a href="<?php echo category_url($cat['slug']); ?>">
                             <i class="bi bi-folder" style="color:<?php echo $cat['color'] ?? '#00C853'; ?>"></i>
-                            <?php echo $cat['name']; ?>
+                            <?php echo esc($cat['name']); ?>
                         </a>
                         <span class="count"><?php echo $cat['post_count'] ?? 0; ?></span>
                     </div>

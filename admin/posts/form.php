@@ -35,11 +35,11 @@ function handleImageUpload($file, $existingImage = '', $subfolder = 'posts') {
     $filepath = $uploadDir . $filename;
 
     if (move_uploaded_file($file['tmp_name'], $filepath)) {
-        // Delete old image if exists
-        if ($existingImage && file_exists($uploadDir . $existingImage)) {
-            unlink($uploadDir . $existingImage);
+        $relative = $subfolder . '/' . $filename;
+        if (class_exists('Media')) {
+            Media::register($relative, $file['name'] ?? $filename, '', Auth::id());
         }
-        return $subfolder . '/' . $filename;
+        return $relative;
     }
 
     return $existingImage;
@@ -54,8 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
     }
 
     // Check if image URL is provided
-    if (!empty($_POST['featured_image_url'])) {
-        $featuredImage = sanitize($_POST['featured_image_url']);
+    if (!empty($_POST['featured_image_media'])) {
+        $featuredImage = Media::relativePath(sanitize($_POST['featured_image_media']));
+    } elseif (!empty($_POST['featured_image_url'])) {
+        $remote = sanitize($_POST['featured_image_url']);
+        $featuredImage = class_exists('Media') ? (Media::localizePath($remote, 'posts', $_POST['title'] ?? '', Auth::id()) ?: $featuredImage) : $remote;
     }
     // Check if file was uploaded
     elseif (isset($_FILES['featured_image_file']) && $_FILES['featured_image_file']['error'] === UPLOAD_ERR_OK) {
@@ -68,7 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
     // Handle OG Image upload
     $ogImage = $post['og_image'] ?? '';
     if (!empty($_POST['og_image_url'])) {
-        $ogImage = sanitize($_POST['og_image_url']);
+        $remoteOg = sanitize($_POST['og_image_url']);
+        $ogImage = class_exists('Media') ? (Media::localizePath($remoteOg, 'og', $_POST['title'] ?? '', Auth::id()) ?: $ogImage) : $remoteOg;
     } elseif (isset($_FILES['og_image_file']) && $_FILES['og_image_file']['error'] === UPLOAD_ERR_OK) {
         $uploadedOgImage = handleImageUpload($_FILES['og_image_file'], $ogImage, 'og');
         if ($uploadedOgImage !== $ogImage) {
@@ -79,7 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
     // Handle Twitter Image upload
     $twitterImage = $post['twitter_image'] ?? '';
     if (!empty($_POST['twitter_image_url'])) {
-        $twitterImage = sanitize($_POST['twitter_image_url']);
+        $remoteTw = sanitize($_POST['twitter_image_url']);
+        $twitterImage = class_exists('Media') ? (Media::localizePath($remoteTw, 'twitter', $_POST['title'] ?? '', Auth::id()) ?: $twitterImage) : $remoteTw;
     } elseif (isset($_FILES['twitter_image_file']) && $_FILES['twitter_image_file']['error'] === UPLOAD_ERR_OK) {
         $uploadedTwitterImage = handleImageUpload($_FILES['twitter_image_file'], $twitterImage, 'twitter');
         if ($uploadedTwitterImage !== $twitterImage) {
@@ -92,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
         'title' => sanitize($_POST['title'] ?? ''),
         'slug' => create_slug($_POST['slug'] ?? $_POST['title'] ?? ''),
         'excerpt' => $_POST['excerpt'] ?? '',
-        'content' => $_POST['content'] ?? '',
+        'content' => class_exists('PublishSeo') ? PublishSeo::stripFaqBlocks($_POST['content'] ?? '') : ($_POST['content'] ?? ''),
         'category_id' => intval($_POST['category_id'] ?? 0) ?: null,
         'status' => $_POST['status'] ?? 'draft',
         'post_type' => $_POST['post_type'] ?? 'standard',
@@ -163,6 +168,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
     $data['word_count'] = str_word_count(strip_tags($data['content']));
 
     if ($isEdit && $post) {
+        if (!empty($post['source_id'])) {
+            $data['source_id'] = $post['source_id'];
+        }
+        if (!empty($post['original_url'])) {
+            $data['original_url'] = $post['original_url'];
+            $data['original_title'] = $post['original_title'] ?? null;
+        }
         $data['slug'] = unique_slug('posts', $data['slug'], $post['id']);
         $data['updated_at'] = date('Y-m-d H:i:s');
         Database::update('posts', $data, 'id = ?', [$post['id']]);
@@ -193,6 +205,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
                 }
             }
         }
+    }
+
+    $wasPublished = $isEdit && ($post['status'] ?? '') === 'published';
+    $useAiRewrite = isset($_POST['use_ai_rewrite']);
+    if ($data['status'] === 'published' && $useAiRewrite && class_exists('PublishSeo')) {
+        try {
+            $enhanced = PublishSeo::enhancePost((int) $postId, true);
+            if ($enhanced) {
+                $data = array_merge($data, $enhanced);
+            }
+        } catch (Throwable $e) {
+            flash_set('error', 'AI rewrite failed. The post was saved without rewriting. ' . $e->getMessage());
+            header('Location: ' . admin_url('posts&action=edit&id=' . (int) $postId));
+            exit;
+        }
+    }
+    if ($data['status'] === 'published') {
+        if (!$wasPublished && class_exists('Mailer')) {
+            try {
+                Mailer::sendPublishNotice(array_merge($data, ['id' => $postId]), Auth::user() ?? []);
+            } catch (Throwable $e) {
+                error_log('Publish notice failed: ' . $e->getMessage());
+            }
+            Auth::logActivity('publish', 'Published post: ' . $data['title']);
+        } else {
+            Auth::logActivity($isEdit ? 'post_update' : 'post_create', ($isEdit ? 'Updated' : 'Created') . ' post: ' . $data['title']);
+        }
+        if (class_exists('SearchIndex')) {
+            SearchIndex::notifyPublishedPost(array_merge($data, ['id' => $postId, 'slug' => $data['slug'] ?? ($post['slug'] ?? '')]));
+        }
+    } else {
+        Auth::logActivity($isEdit ? 'post_update' : 'post_create', ($isEdit ? 'Updated' : 'Created') . ' post: ' . $data['title']);
     }
 
     flash_set('success', 'Post ' . ($isEdit ? 'updated' : 'created') . ' successfully.');
@@ -306,18 +350,17 @@ include ADMIN_PATH . 'layout/header.php';
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h4 class="mb-0"><i class="bi bi-file-text me-2"></i><?php echo $isEdit ? 'Edit' : 'Create'; ?> Post</h4>
-    <div>
-        <a href="<?php echo admin_url('posts'); ?>" class="btn btn-outline-secondary btn-sm me-2"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="<?php echo admin_url('posts'); ?>" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
         <?php if ($isEdit && $post): ?>
         <a href="<?php echo post_url($post['slug']); ?>" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye me-1"></i>View</a>
         <?php endif; ?>
     </div>
 </div>
 
-<!-- Current Server Time Display -->
-<div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
+<div class="alert alert-info d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <span><i class="bi bi-clock me-2"></i> Server Time: <strong><?php echo date('Y-m-d H:i:s'); ?></strong> (<?php echo date_default_timezone_get(); ?>)</span>
     <span class="badge bg-success">Post will be visible immediately when published</span>
 </div>
@@ -328,6 +371,18 @@ include ADMIN_PATH . 'layout/header.php';
     <div class="row g-4">
         <!-- Main Content Column -->
         <div class="col-lg-8">
+
+            <?php if (!empty($post['original_url'])): ?>
+            <div class="alert alert-info">
+                <i class="bi bi-robot me-1"></i>
+                AI draft from source.
+                Original:
+                <a href="<?php echo esc_attr($post['original_url']); ?>" target="_blank" rel="noopener">
+                    <?php echo esc($post['original_title'] ?: $post['original_url']); ?>
+                </a>
+                Stay in <strong>Draft</strong> until you are ready to publish.
+            </div>
+            <?php endif; ?>
 
             <!-- Title & Content -->
             <div class="card border-0 mb-4 shadow-sm">
@@ -398,7 +453,7 @@ include ADMIN_PATH . 'layout/header.php';
                                     <?php 
                                     $featuredImg = $post['featured_image'] ?? '';
                                     if (!empty($featuredImg)):
-                                        $imgUrl = strpos($featuredImg, 'http') === 0 ? $featuredImg : upload_url($featuredImg);
+                                        $imgUrl = media_url($featuredImg);
                                     ?>
                                         <img src="<?php echo $imgUrl; ?>" alt="Featured Image" id="previewImg">
                                         <button type="button" class="btn btn-sm btn-danger remove-image-btn" onclick="removeImage()">
@@ -456,17 +511,17 @@ include ADMIN_PATH . 'layout/header.php';
                                 <div class="row g-2" id="mediaLibraryGrid">
                                     <?php
                                     $mediaFiles = Database::fetchAll(
-                                        "SELECT * FROM media WHERE file_type IN ('image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml') ORDER BY created_at DESC LIMIT 20"
+                                        "SELECT * FROM media WHERE file_type IN ('jpg','jpeg','png','gif','webp','svg','image/jpeg','image/png','image/gif','image/webp','image/svg+xml') ORDER BY created_at DESC LIMIT 40"
                                     );
                                     if (!empty($mediaFiles)):
                                         foreach ($mediaFiles as $media):
-                                            $isSelected = ($post['featured_image'] ?? '') === $media['file_path'];
+                                            $isSelected = ($post['featured_image'] ?? '') === Media::relativePath($media['file_path'] ?: $media['filename']);
                                     ?>
                                         <div class="col-3">
                                             <div class="media-item <?php echo $isSelected ? 'selected' : ''; ?>" 
-                                                 onclick="selectMedia('<?php echo $media['file_path']; ?>', this)" 
+                                                 onclick="selectMedia('<?php echo Media::relativePath($media['file_path'] ?: $media['filename']); ?>', this)" 
                                                  style="cursor:pointer; border:2px solid <?php echo $isSelected ? 'var(--tp-primary, #00C853)' : 'transparent'; ?>; border-radius:8px; padding:4px; background:#f8f9fa;">
-                                                <img src="<?php echo upload_url($media['file_path']); ?>" alt="<?php echo esc_attr($media['alt_text'] ?? $media['filename']); ?>" 
+                                                <img src="<?php echo media_url($media['file_path'] ?: $media['filename']); ?>" alt="<?php echo esc_attr($media['alt_text'] ?? $media['filename']); ?>" 
                                                      style="width:100%; height:80px; object-fit:cover; border-radius:4px;">
                                                 <small class="d-block text-truncate text-muted" style="font-size:10px;"><?php echo $media['filename']; ?></small>
                                             </div>
@@ -833,6 +888,12 @@ include ADMIN_PATH . 'layout/header.php';
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" name="allow_comments" id="com" <?php echo !isset($post['allow_comments']) || $post['allow_comments'] ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="com">Allow Comments</label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="use_ai_rewrite" id="useAiRewrite" value="1">
+                        <label class="form-check-label" for="useAiRewrite">Use AI rewrite</label>
+                        <div class="form-text">Tick this to regenerate title, excerpt, body, SEO, and social fields with Gemini before publishing. Leave unticked to publish the current draft as-is.</div>
                     </div>
 
                     <button type="submit" class="btn btn-success w-100">

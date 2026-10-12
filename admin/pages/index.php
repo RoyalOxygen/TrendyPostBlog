@@ -6,11 +6,29 @@ $pageTitle = 'Pages | Admin';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')) {
     $data = ['title'=>sanitize($_POST['title']??''),'slug'=>create_slug($_POST['slug']??$_POST['title']??''),'content'=>$_POST['content']??'','excerpt'=>sanitize($_POST['excerpt']??''),'seo_title'=>sanitize($_POST['seo_title']??''),'seo_description'=>sanitize($_POST['seo_description']??''),'status'=>$_POST['status']??'draft','show_in_menu'=>isset($_POST['show_in_menu'])?1:0,'author_id'=>Auth::id()];
-    if (!empty($_POST['id'])) { Database::update('pages', $data, 'id = ?', [intval($_POST['id'])]); flash_set('success', 'Page updated.'); }
-    else { $data['slug'] = unique_slug('pages', $data['slug']); Database::insert('pages', $data); flash_set('success', 'Page created.'); }
+    if (!empty($_POST['id'])) {
+        Database::update('pages', $data, 'id = ?', [intval($_POST['id'])]);
+        Auth::logActivity('page_update', 'Updated page: ' . $data['title']);
+        flash_set('success', 'Page updated.');
+    } else {
+        $data['slug'] = unique_slug('pages', $data['slug']);
+        Database::insert('pages', $data);
+        Auth::logActivity('page_create', 'Created page: ' . $data['title']);
+        flash_set('success', 'Page created.');
+    }
+    if (($data['status'] ?? '') === 'published' && class_exists('SearchIndex')) {
+        SearchIndex::notifyPublishedPage($data);
+    }
     header('Location: ' . admin_url('pages')); exit;
 }
-if ($action === 'delete' && verify_csrf($_GET['_token'] ?? '')) { Database::delete('pages', 'id = ?', [intval($_GET['id'] ?? 0)]); flash_set('success', 'Page deleted.'); header('Location: ' . admin_url('pages')); exit; }
+if ($action === 'delete' && verify_csrf($_GET['_token'] ?? '')) {
+    $pageId = intval($_GET['id'] ?? 0);
+    Database::delete('pages', 'id = ?', [$pageId]);
+    Auth::logActivity('page_delete', 'Deleted page #' . $pageId);
+    flash_set('success', 'Page deleted.');
+    header('Location: ' . admin_url('pages'));
+    exit;
+}
 
 $pages = Database::fetchAll("SELECT * FROM pages ORDER BY created_at DESC");
 $editId = ($action === 'edit') ? intval($_GET['id'] ?? 0) : 0;
@@ -18,7 +36,7 @@ $editPage = $editId ? Page::getById($editId) : null;
 
 include ADMIN_PATH . 'layout/header.php';
 ?>
-<div class="d-flex justify-content-between align-items-center mb-4"><h4 class="mb-0"><i class="bi bi-file-earmark me-2"></i>Pages</h4><a href="<?php echo admin_url('pages&action=create'); ?>" class="btn btn-success btn-sm"><i class="bi bi-plus-lg me-1"></i>New Page</a></div>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2"><h4 class="mb-0"><i class="bi bi-file-earmark me-2"></i>Pages</h4><a href="<?php echo admin_url('pages&action=create'); ?>" class="btn btn-success btn-sm"><i class="bi bi-plus-lg me-1"></i>New Page</a></div>
 <?php if($action==='create' || $editPage): ?>
 <div class="card border-0"><div class="card-body">
     <form method="POST"><input type="hidden" name="_token" value="<?php echo csrf_token(); ?>"><?php if($editPage): ?><input type="hidden" name="id" value="<?php echo $editPage['id']; ?>"><?php endif; ?>

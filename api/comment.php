@@ -4,38 +4,39 @@
  * Handles comment submissions via AJAX
  */
 
-// Allow cross-origin requests for API
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
-
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
-// Only allow POST requests
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-    exit;
-}
-
-// Define TRENDYPOST if not defined
 if (!defined('TRENDYPOST')) {
     define('TRENDYPOST', true);
 }
 
-// Load required files
 require_once __DIR__ . '/../config/config.php';
 require_once INCLUDES_PATH . 'Database.php';
 require_once INCLUDES_PATH . 'Helpers.php';
 require_once INCLUDES_PATH . 'Models.php';
 require_once INCLUDES_PATH . 'Auth.php';
+if (!class_exists('Mailer')) {
+    require_once INCLUDES_PATH . 'Mailer.php';
+}
 
-// Initialize session if not already started
+ini_set('display_errors', '0');
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
+header('Content-Type: application/json; charset=UTF-8');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, X-Requested-With');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    json_response(['success' => false, 'message' => 'Method not allowed'], 405);
+}
+
 if (session_status() === PHP_SESSION_NONE) {
+    session_name(SESSION_NAME);
     session_start();
 }
 
@@ -47,9 +48,8 @@ if (empty($postData)) {
     $postData = $_POST;
 }
 
-// Validate CSRF token
 if (!isset($postData['_token']) || !verify_csrf($postData['_token'])) {
-    echo json_encode(['success' => false, 'message' => 'Invalid security token. Please refresh and try again.']);
+    json_response(['success' => false, 'message' => 'Invalid security token. Please refresh and try again.']);
     exit;
 }
 
@@ -63,24 +63,24 @@ $authorWebsite = trim($postData['author_website'] ?? '');
 
 // Validate required fields
 if (!$postId) {
-    echo json_encode(['success' => false, 'message' => 'Post ID is required.']);
+    json_response(['success' => false, 'message' => 'Post ID is required.']);
     exit;
 }
 
 if (empty($content)) {
-    echo json_encode(['success' => false, 'message' => 'Comment content is required.']);
+    json_response(['success' => false, 'message' => 'Comment content is required.']);
     exit;
 }
 
 // Check if post exists and allows comments
 $post = Database::fetchOne("SELECT id, allow_comments FROM posts WHERE id = ? AND status = 'published'", [$postId]);
 if (!$post) {
-    echo json_encode(['success' => false, 'message' => 'Post not found.']);
+    json_response(['success' => false, 'message' => 'Post not found.']);
     exit;
 }
 
 if (!$post['allow_comments']) {
-    echo json_encode(['success' => false, 'message' => 'Comments are disabled for this post.']);
+    json_response(['success' => false, 'message' => 'Comments are disabled for this post.']);
     exit;
 }
 
@@ -95,13 +95,16 @@ if (Auth::check()) {
     $displayName = $user['display_name'] ?? $user['username'] ?? 'User';
     $userEmail = $user['email'] ?? '';
 } else {
-    // For guest comments, validate name and email
+    if (!(string) Setting::get('allow_guest_comments', '1')) {
+        json_response(['success' => false, 'message' => 'Please log in to comment.']);
+        exit;
+    }
     if (empty($authorName)) {
-        echo json_encode(['success' => false, 'message' => 'Name is required for guest comments.']);
+        json_response(['success' => false, 'message' => 'Name is required for guest comments.']);
         exit;
     }
     if (empty($authorEmail) || !is_valid_email($authorEmail)) {
-        echo json_encode(['success' => false, 'message' => 'Valid email is required for guest comments.']);
+        json_response(['success' => false, 'message' => 'Valid email is required for guest comments.']);
         exit;
     }
     $displayName = $authorName;
@@ -131,39 +134,52 @@ try {
     $commentId = Database::insert('comments', $commentData);
     
     if (!$commentId) {
-        echo json_encode(['success' => false, 'message' => 'Failed to save comment. Please try again.']);
+        json_response(['success' => false, 'message' => 'Failed to save comment. Please try again.']);
         exit;
     }
-    
-    // Update comment count on post
+
     Database::query(
         "UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments WHERE post_id = ? AND status = 'approved') WHERE id = ?",
         [$postId, $postId]
     );
-    
-    // Return success response
+
+    $postRow = Database::fetchOne(
+        "SELECT p.id, p.title, p.slug, u.email as author_email, u.display_name as author_name
+         FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.id = ?",
+        [$postId]
+    );
+    Auth::logActivity('comment', 'Comment on post #' . $postId . ' by ' . $displayName, $userId);
+
     $response = [
         'success' => true,
         'message' => $moderation ? 'Your comment is awaiting moderation.' : 'Comment posted successfully!',
         'comment' => [
             'id' => $commentId,
-            'author_name' => $displayName,
-            'content' => nl2br(htmlspecialchars($content)),
+            'author_name' => htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'),
+            'content' => nl2br(htmlspecialchars($content, ENT_QUOTES, 'UTF-8')),
             'created_at' => 'Just now',
             'status' => $status
         ]
     ];
-    
+
     if ($moderation) {
         $response['moderation'] = true;
     }
-    
-    echo json_encode($response);
-    
-} catch (Exception $e) {
+
+    try {
+        if (class_exists('Mailer') && $postRow) {
+            Mailer::sendCommentNotice($commentData + ['id' => $commentId], $postRow);
+        }
+    } catch (Throwable $mailError) {
+        error_log('Comment notice failed: ' . $mailError->getMessage());
+    }
+
+    json_response($response);
+
+} catch (Throwable $e) {
     error_log("Comment Error: " . $e->getMessage());
-    echo json_encode([
+    json_response([
         'success' => false,
         'message' => 'An error occurred while posting your comment. Please try again.'
-    ]);
+    ], 500);
 }

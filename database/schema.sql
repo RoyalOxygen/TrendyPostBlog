@@ -1,6 +1,6 @@
 -- ============================================================
 -- TRENDYPOST - ENTERPRISE SEO BLOGGING PLATFORM
--- Complete Database Schema for MySQL 8+
+-- Complete Database Schema for M$2y$10$aNSuEINLtiUidHNF58EWSO/./EZFjMGkwvOe2JSD3scQFZij8mwTWSQL 8+
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS trendypost CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -195,6 +195,12 @@ CREATE TABLE posts (
     FULLTEXT INDEX ft_title_content (title, content, excerpt)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE posts
+    ADD COLUMN source_id INT UNSIGNED DEFAULT NULL AFTER author_id,
+    ADD COLUMN original_url VARCHAR(500) DEFAULT NULL AFTER source_id,
+    ADD COLUMN original_title VARCHAR(255) DEFAULT NULL AFTER original_url,
+    ADD UNIQUE INDEX idx_original_url (original_url);
+
 CREATE TABLE post_tags (
     post_id INT UNSIGNED NOT NULL,
     tag_id INT UNSIGNED NOT NULL,
@@ -270,6 +276,39 @@ CREATE TABLE pages (
     INDEX idx_homepage (is_homepage),
     FULLTEXT INDEX ft_content (title, content)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 3B. AI SOURCE INGEST
+-- ============================================================
+
+CREATE TABLE ai_sources (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    frequency_minutes INT UNSIGNED NOT NULL DEFAULT 360,
+    max_posts TINYINT UNSIGNED NOT NULL DEFAULT 5,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    last_checked_at DATETIME DEFAULT NULL,
+    last_status VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_enabled (enabled),
+    INDEX idx_last_checked (last_checked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ai_source_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    source_id INT UNSIGNED DEFAULT NULL,
+    message TEXT NOT NULL,
+    level ENUM('info','warn','error') DEFAULT 'info',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_id) REFERENCES ai_sources(id) ON DELETE SET NULL,
+    INDEX idx_source (source_id),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE posts
+    ADD CONSTRAINT fk_posts_source FOREIGN KEY (source_id) REFERENCES ai_sources(id) ON DELETE SET NULL;
 
 -- ============================================================
 -- 4. COMMENTS SYSTEM
@@ -367,7 +406,7 @@ CREATE TABLE advertisements (
     title VARCHAR(255) NOT NULL,
     network_id INT UNSIGNED,
     placement_id INT UNSIGNED NOT NULL,
-    ad_type ENUM('display','native','smartlink','in_page_push','push_notification','vignette','popunder','banner','video','multitag','custom_html','affiliate') DEFAULT 'display',
+    ad_type ENUM('display','native','smartlink','in_page_push','push_notification','vignette','popunder','banner','video','multitag','custom_html','affiliate','google_adsense') DEFAULT 'display',
     ad_code TEXT,
     custom_html LONGTEXT,
     image VARCHAR(255),
@@ -698,7 +737,8 @@ INSERT INTO permissions (name, display_name, module, description) VALUES
 ('menus.manage', 'Manage Menus', 'menus', 'Manage navigation menus'),
 ('backups.manage', 'Manage Backups', 'backups', 'Create and restore backups'),
 ('audit.view', 'View Audit Logs', 'audit', 'View system audit logs'),
-('contact.view', 'View Contact Messages', 'contact', 'View contact form submissions');
+('contact.view', 'View Contact Messages', 'contact', 'View contact form submissions'),
+('ai.sources', 'Manage AI Sources', 'ai', 'Add source websites and run AI ingest into drafts');
 
 -- Assign all permissions to Super Admin
 INSERT INTO role_permissions (role_id, permission_id)
@@ -711,7 +751,7 @@ SELECT 2, id FROM permissions WHERE name NOT IN ('roles.manage', 'audit.view');
 -- Editor permissions
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 3, id FROM permissions WHERE name IN 
-('dashboard.view', 'posts.view', 'posts.edit', 'posts.publish', 'comments.moderate', 'media.manage', 'categories.manage', 'tags.manage', 'pages.manage', 'newsletters.manage', 'subscribers.manage');
+('dashboard.view', 'posts.view', 'posts.edit', 'posts.publish', 'comments.moderate', 'media.manage', 'categories.manage', 'tags.manage', 'pages.manage', 'newsletters.manage', 'subscribers.manage', 'ai.sources');
 
 -- Author permissions
 INSERT INTO role_permissions (role_id, permission_id)
@@ -800,6 +840,10 @@ INSERT INTO settings (setting_key, setting_value, setting_group, is_public) VALU
 ('smtp_encryption', 'tls', 'email', 0),
 ('smtp_from_email', 'noreply@trendypost.com', 'email', 0),
 ('smtp_from_name', 'TrendyPost', 'email', 0),
+('notify_welcome_email', '1', 'email', 0),
+('notify_on_comment', '1', 'email', 0),
+('notify_on_publish', '1', 'email', 0),
+('notify_on_contact', '1', 'email', 0),
 ('maintenance_mode', '0', 'system', 0),
 ('registration_enabled', '1', 'system', 1),
 ('cache_enabled', '1', 'system', 0),
@@ -812,7 +856,14 @@ INSERT INTO settings (setting_key, setting_value, setting_group, is_public) VALU
 ('secondary_color', '#1a1a1a', 'appearance', 1),
 ('header_style', 'default', 'appearance', 1),
 ('footer_style', 'default', 'appearance', 1),
-('homepage_layout', 'magazine', 'appearance', 1);
+('homepage_layout', 'magazine', 'appearance', 1),
+('max_login_attempts', '5', 'security', 0),
+('lockout_duration', '900', 'security', 0),
+('user_llm_api_key', '', 'ai', 0),
+('user_llm_base_url', 'https://generativelanguage.googleapis.com', 'ai', 0),
+('user_llm_model', 'gemini-2.0-flash', 'ai', 0),
+('gemini_api_keys', '', 'ai', 0),
+('gemini_model', 'gemini-2.0-flash', 'ai', 0);
 
 -- Insert default SEO settings
 INSERT INTO seo_settings (setting_key, setting_value, setting_group) VALUES
@@ -837,7 +888,7 @@ INSERT INTO seo_settings (setting_key, setting_value, setting_group) VALUES
 ('sitemap_posts_limit', '1000', 'sitemap'),
 ('sitemap_auto_ping', '1', 'sitemap'),
 ('robots_txt', 'User-agent: *\nDisallow: /admin/\nDisallow: /api/\nDisallow: /install/\nAllow: /\n\nSitemap: /sitemap.xml', 'robots'),
-('auto_indexing', '0', 'indexing'),
+('auto_indexing', '1', 'indexing'),
 ('indexing_api_key', '', 'indexing'),
 ('breadcrumb_home', 'Home', 'breadcrumbs'),
 ('breadcrumb_separator', '>', 'breadcrumbs'),
@@ -862,6 +913,10 @@ INSERT INTO menu_items (menu_id, title, url, sort_order, item_type) VALUES
 (1, 'About', '/page/about-us', 5, 'page'),
 (1, 'Contact', '/page/contact', 6, 'page');
 
+-- Create default super admin user (password: Admin@123)
+INSERT INTO users (username, email, password_hash, display_name, first_name, last_name, role_id, status, email_verified) VALUES
+('admin', 'admin@trendypost.com', '$2y$10$/x8mok40GANaeM8vlHnUsOGhi/TIiQxEGwvD5zcs9kApDAEYaYkjq', 'Super Admin', 'Super', 'Admin', 1, 'active', 1);
+
 -- Insert default pages
 INSERT INTO pages (title, slug, content, excerpt, author_id, status, show_in_menu, menu_order, is_homepage, seo_title, seo_description, allow_comments) VALUES
 ('About Us', 'about-us', '<h2>Welcome to TrendyPost</h2><p>TrendyPost is a leading digital publishing platform dedicated to delivering the latest trending news, insightful articles, and engaging stories across multiple categories including technology, lifestyle, business, entertainment, and more.</p><p>Our mission is to keep you informed, entertained, and inspired with high-quality content crafted by our team of experienced writers and editors.</p><h3>Our Story</h3><p>Founded in 2024, TrendyPost has grown from a small blog to a comprehensive digital publishing platform reaching millions of readers worldwide.</p><h3>Our Values</h3><ul><li>Accuracy and integrity in reporting</li><li>Diverse perspectives and voices</li><li>Reader-first approach</li><li>Innovation in digital storytelling</li></ul>', 'Learn more about TrendyPost, our mission, values, and the team behind the stories.', 1, 'published', 1, 1, 0, 'About Us | TrendyPost', 'Learn about TrendyPost - your premier destination for trending news and stories.', 0),
@@ -869,6 +924,19 @@ INSERT INTO pages (title, slug, content, excerpt, author_id, status, show_in_men
 ('Privacy Policy', 'privacy-policy', '<h2>Privacy Policy</h2><p>At TrendyPost, we take your privacy seriously. This Privacy Policy explains how we collect, use, and protect your personal information.</p><h3>Information We Collect</h3><p>We collect information you provide directly to us, such as when you create an account, subscribe to our newsletter, or contact us.</p><h3>How We Use Your Information</h3><p>We use the information we collect to provide, maintain, and improve our services, and to communicate with you.</p>', 'Read TrendyPost privacy policy to understand how we handle your data.', 1, 'published', 0, 0, 0, 'Privacy Policy | TrendyPost', 'TrendyPost privacy policy and data protection practices.', 0),
 ('Terms of Service', 'terms-of-service', '<h2>Terms of Service</h2><p>By accessing and using TrendyPost, you agree to these Terms of Service.</p><h3>Use of Content</h3><p>All content on TrendyPost is protected by copyright. You may not reproduce, distribute, or create derivative works without permission.</p>', 'Read the Terms of Service for using TrendyPost.', 1, 'published', 0, 0, 0, 'Terms of Service | TrendyPost', 'Terms and conditions for using TrendyPost.', 0);
 
--- Create default super admin user (password: Admin@123)
-INSERT INTO users (username, email, password_hash, display_name, first_name, last_name, role_id, status, email_verified) VALUES
-('admin', 'admin@trendypost.com', '$2y$12$8fN5S3Cp7nJxL4Kt8mYQ.e8Q5K1Xj3p9L7mN2qR5s8u6x2w4y6a', 'Super Admin', 'Super', 'Admin', 1, 'active', 1);
+-- Default categories used by AI ingest and the magazine home
+INSERT INTO categories (name, slug, description, color, status, sort_order) VALUES
+('News', 'news', 'Latest news and headlines', '#00C853', 'active', 1),
+('Politics', 'politics', 'Politics and government', '#1565C0', 'active', 2),
+('Business', 'business', 'Markets, economy and business', '#EF6C00', 'active', 3),
+('Sports', 'sports', 'Sports news', '#2E7D32', 'active', 4),
+('Tech', 'tech', 'Technology and innovation', '#6A1B9A', 'active', 5),
+('Entertainment', 'entertainment', 'Entertainment and culture', '#C2185B', 'active', 6),
+('Health', 'health', 'Health and wellness', '#00838F', 'active', 7),
+('World', 'world', 'World news', '#37474F', 'active', 8);
+
+-- Default AI source
+INSERT INTO ai_sources (name, url, frequency_minutes, max_posts, enabled) VALUES
+('Punch NG', 'https://punchng.com/', 360, 5, 1);
+
+

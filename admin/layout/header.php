@@ -7,6 +7,7 @@ $route = preg_replace('#^admin/?|^/admin/?#', '', $route);
 if (!isset($stats)) { 
     $stats = ['comments' => ['pending' => Database::count('comments', "status = 'pending'") ?? 0]]; 
 }
+$newMessages = Database::count('contact_messages', "status = 'new'") ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -21,61 +22,10 @@ if (!isset($stats)) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Admin CSS - Using correct path for root domain -->
-    <link href="<?php echo ADMIN_ASSETS_URL; ?>admin.css" rel="stylesheet">
-    
-    <!-- Fallback inline styles -->
-    <style>
-        /* Quick fix styles in case CSS doesn't load */
-        :root {
-            --tp-primary: #00C853;
-            --tp-secondary: #1a1a2e;
-            --tp-gray-100: #f8f9fa;
-            --tp-gray-200: #e9ecef;
-            --tp-gray-300: #dee2e6;
-            --tp-gray-400: #ced4da;
-            --tp-gray-500: #adb5bd;
-            --tp-gray-600: #6c757d;
-            --tp-gray-700: #495057;
-            --tp-gray-800: #343a40;
-            --tp-gray-900: #212529;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #495057; }
-        .admin-wrapper { display: flex; min-height: 100vh; }
-        .admin-sidebar { width: 260px; background: #1a1a2e; color: #fff; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 1000; transition: transform 0.3s; }
-        .admin-sidebar::-webkit-scrollbar { width: 4px; }
-        .admin-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-        .admin-main { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
-        .admin-topbar { background: #fff; padding: 12px 24px; border-bottom: 1px solid #e9ecef; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
-        .admin-content { padding: 24px; flex: 1; }
-        .admin-footer { padding: 16px 24px; background: #fff; border-top: 1px solid #e9ecef; }
-        .sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .sidebar-brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-size: 18px; font-weight: 700; }
-        .sidebar-brand:hover { color: #fff; }
-        .sidebar-nav { list-style: none; padding: 12px 0; margin: 0; }
-        .sidebar-nav li { padding: 0 12px; }
-        .sidebar-nav .nav-section { padding: 20px 16px 8px; font-size: 11px; text-transform: uppercase; color: rgba(255,255,255,0.3); letter-spacing: 1px; font-weight: 600; }
-        .sidebar-nav a { display: flex; align-items: center; gap: 12px; padding: 10px 16px; color: rgba(255,255,255,0.65); text-decoration: none; border-radius: 8px; transition: all 0.2s; font-size: 14px; }
-        .sidebar-nav a:hover { background: rgba(255,255,255,0.08); color: #fff; }
-        .sidebar-nav a.active { background: #00C853; color: #fff; box-shadow: 0 4px 12px rgba(0,200,83,0.3); }
-        .sidebar-nav a i { font-size: 18px; width: 24px; text-align: center; }
-        .sidebar-nav a .badge { margin-left: auto; font-size: 11px; padding: 3px 8px; }
-        .topbar-toggle { display: none; color: #495057; font-size: 24px; padding: 4px 8px; background: none; border: none; }
-        .topbar-toggle:hover { color: #212529; }
-        .topbar-search { position: relative; flex: 1; max-width: 400px; }
-        .topbar-search .form-control { padding-left: 36px; border-radius: 8px; font-size: 14px; height: 38px; }
-        .topbar-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #adb5bd; }
-        @media (max-width: 992px) { 
-            .admin-sidebar { transform: translateX(-100%); } 
-            .admin-main { margin-left: 0; } 
-            .topbar-toggle { display: block; } 
-            .admin-sidebar.open { transform: translateX(0); } 
-        }
-        @media (max-width: 576px) { .admin-content { padding: 16px; } }
-    </style>
+    <link href="<?php echo ADMIN_ASSETS_URL; ?>admin.css?v=<?php echo APP_VERSION; ?>" rel="stylesheet">
 </head>
 <body class="admin-body">
+<div class="admin-overlay" id="adminOverlay"></div>
 <div class="admin-wrapper">
     <!-- Sidebar -->
     <nav class="admin-sidebar" id="adminSidebar">
@@ -91,10 +41,14 @@ if (!isset($stats)) {
 
             <li class="nav-section">CONTENT</li>
             <li><a href="<?php echo admin_url('posts'); ?>" class="<?php echo $route==='posts'?'active':''; ?>"><i class="bi bi-file-text"></i> Posts</a></li>
+            <li><a href="<?php echo admin_url('ai-sources'); ?>" class="<?php echo $route==='ai-sources'?'active':''; ?>"><i class="bi bi-robot"></i> AI Sources</a></li>
             <li><a href="<?php echo admin_url('categories'); ?>" class="<?php echo $route==='categories'?'active':''; ?>"><i class="bi bi-folder"></i> Categories</a></li>
             <li><a href="<?php echo admin_url('tags'); ?>" class="<?php echo $route==='tags'?'active':''; ?>"><i class="bi bi-tags"></i> Tags</a></li>
             <li><a href="<?php echo admin_url('pages'); ?>" class="<?php echo $route==='pages'?'active':''; ?>"><i class="bi bi-file-earmark"></i> Pages</a></li>
             <li><a href="<?php echo admin_url('comments'); ?>" class="<?php echo $route==='comments'?'active':''; ?>"><i class="bi bi-chat-dots"></i> Comments<?php $pc = $stats['comments']['pending'] ?? 0; if ($pc): ?> <span class="badge bg-warning"><?php echo $pc; ?></span><?php endif; ?></a></li>
+            <?php if (Auth::isAdmin() || Auth::can('contact.view')): ?>
+            <li><a href="<?php echo admin_url('messages'); ?>" class="<?php echo $route==='messages'?'active':''; ?>"><i class="bi bi-inbox"></i> Messages<?php if ($newMessages): ?> <span class="badge bg-warning"><?php echo $newMessages; ?></span><?php endif; ?></a></li>
+            <?php endif; ?>
             <li><a href="<?php echo admin_url('media'); ?>" class="<?php echo $route==='media'?'active':''; ?>"><i class="bi bi-images"></i> Media Library</a></li>
 
             <li class="nav-section">USERS</li>
@@ -110,6 +64,9 @@ if (!isset($stats)) {
 
             <li class="nav-section">SYSTEM</li>
             <li><a href="<?php echo admin_url('menus'); ?>" class="<?php echo $route==='menus'?'active':''; ?>"><i class="bi bi-menu-button"></i> Menus</a></li>
+            <?php if (Auth::isSuperAdmin() || Auth::can('audit.view')): ?>
+            <li><a href="<?php echo admin_url('activity'); ?>" class="<?php echo $route==='activity'?'active':''; ?>"><i class="bi bi-clock-history"></i> Activity Logs</a></li>
+            <?php endif; ?>
             <li><a href="<?php echo admin_url('settings'); ?>" class="<?php echo $route==='settings'?'active':''; ?>"><i class="bi bi-gear"></i> Settings</a></li>
 
             <li class="nav-section">ACCOUNT</li>
@@ -127,8 +84,8 @@ if (!isset($stats)) {
                 <i class="bi bi-search"></i>
                 <input type="text" placeholder="Search..." class="form-control form-control-sm">
             </div>
-            <div class="topbar-actions ms-auto d-flex align-items-center gap-3">
-                <a href="<?php echo url(); ?>" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-globe"></i> <span>View Site</span></a>
+            <div class="topbar-actions ms-auto d-flex align-items-center gap-2 gap-md-3">
+                <a href="<?php echo url(); ?>" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-globe"></i> <span class="d-none d-sm-inline">View Site</span></a>
                 <div class="dropdown">
                     <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                         <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:35px;height:35px;font-size:14px;font-weight:600;background-color:var(--tp-primary, #00C853)!important">

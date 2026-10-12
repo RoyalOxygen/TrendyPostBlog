@@ -2,8 +2,12 @@
 if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 $msg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $result = Auth::forgotPassword($_POST['email'] ?? '');
-    if ($result['success']) { $msg = 'If the email exists, a reset link has been sent.'; }
+    if (!verify_csrf($_POST['_token'] ?? '')) {
+        $msg = 'Invalid request.';
+    } else {
+        Auth::forgotPassword($_POST['email'] ?? '');
+        $msg = 'If the email exists, a reset link has been sent.';
+    }
 }
 $pageTitle = 'Forgot Password | TrendyPost';
 $seoMeta = meta_tags($pageTitle, '', '', 'noindex,nofollow');

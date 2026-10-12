@@ -39,7 +39,7 @@ include INCLUDES_PATH . 'Header.php';
                 <?php if (empty($posts)): ?>
                 <div class="alert alert-info">No articles found in this category.</div>
                 <?php else: foreach ($posts as $post):
-                    $pImg = $post['featured_image'] ? upload_url($post['featured_image']) : image_url('placeholder.jpg');
+                    $pImg = media_url($post['featured_image']);
                 ?>
                 <article class="post-card horizontal-post mb-4">
                     <div class="row g-0">
@@ -76,6 +76,9 @@ include INCLUDES_PATH . 'Header.php';
                 </div>
                 <?php $sAds = get_ads('sidebar_top', 1); if (!empty($sAds)): ?>
                 <div class="ad-container ad-sidebar"><div class="ad-label">Advertisement</div><?php echo render_ad($sAds[0]); ?></div>
+                <?php endif; ?>
+                <?php $sbAds = get_ads('sidebar_bottom', 1); if (!empty($sbAds)): ?>
+                <div class="ad-container ad-sidebar mt-3"><div class="ad-label">Advertisement</div><?php echo render_ad($sbAds[0]); ?></div>
                 <?php endif; ?>
             </aside>
         </div>

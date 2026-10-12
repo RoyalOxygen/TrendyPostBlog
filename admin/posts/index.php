@@ -21,6 +21,7 @@ if ($action === 'create' || $action === 'edit') {
             }
         }
         Database::delete('posts', 'id = ?', [$id]);
+        Auth::logActivity('post_delete', 'Deleted post #' . $id . ($post['title'] ?? '' ? ': ' . $post['title'] : ''));
         flash_set('success', 'Post deleted successfully.');
     }
     header('Location: ' . admin_url('posts'));
@@ -193,18 +194,8 @@ if ($action === 'create' || $action === 'edit') {
                         $hasImage = false;
                         
                         if (!empty($p['featured_image'])) {
-                            // Check if it's a full URL
-                            if (filter_var($p['featured_image'], FILTER_VALIDATE_URL)) {
-                                $thumbnail = $p['featured_image'];
-                                $hasImage = true;
-                            } else {
-                                // It's a file path - check if file exists
-                                $fullPath = UPLOADS_PATH . $p['featured_image'];
-                                if (file_exists($fullPath) && !is_dir($fullPath)) {
-                                    $thumbnail = upload_url($p['featured_image']);
-                                    $hasImage = true;
-                                }
-                            }
+                            $thumbnail = media_url($p['featured_image']);
+                            $hasImage = $thumbnail !== image_url('placeholder.jpg');
                         }
                         
                         // Status badge class
@@ -369,7 +360,7 @@ if ($action === 'create' || $action === 'edit') {
 
         <!-- Pagination -->
         <?php if ($total > $perPage): ?>
-            <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
                 <div class="text-muted small">
                     Showing <?php echo min($total, (($page - 1) * $perPage) + 1); ?> to 
                     <?php echo min($total, $page * $perPage); ?> of <?php echo $total; ?> posts

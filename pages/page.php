@@ -22,7 +22,7 @@ include INCLUDES_PATH . 'Header.php';
                 <article class="single-post">
                     <?php if ($page['featured_image']): ?>
                     <div class="featured-image mb-4">
-                        <img src="<?php echo upload_url($page['featured_image']); ?>" alt="" class="img-fluid rounded">
+                        <img src="<?php echo media_url($page['featured_image']); ?>" alt="" class="img-fluid rounded">
                     </div>
                     <?php endif; ?>
                     <div class="post-content">

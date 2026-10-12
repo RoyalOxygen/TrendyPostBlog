@@ -54,22 +54,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
                     }
                 }
                 $data['image'] = 'categories/' . $filename;
+                if (class_exists('Media')) {
+                    Media::register($data['image'], $_FILES['image_file']['name'] ?? $filename, $data['name'] ?? '', Auth::id());
+                }
             }
         }
     }
     
     // If image URL is provided, use it instead
     if (!empty($_POST['image_url'])) {
-        $data['image'] = sanitize($_POST['image_url']);
+        $remote = sanitize($_POST['image_url']);
+        $data['image'] = class_exists('Media') ? (Media::localizePath($remote, 'categories', $data['name'] ?? '', Auth::id()) ?: $remote) : $remote;
+    } elseif (!empty($data['image']) && class_exists('Media') && !Media::isRemote($data['image'])) {
+        Media::register($data['image'], basename($data['image']), $data['name'] ?? '', Auth::id());
     }
     
     if (!empty($_POST['id'])) {
         $data['slug'] = unique_slug('categories', $data['slug'], intval($_POST['id']));
         Database::update('categories', $data, 'id = ?', [intval($_POST['id'])]);
+        Auth::logActivity('category_update', 'Updated category: ' . $data['name']);
         flash_set('success', 'Category updated successfully.');
     } else {
         $data['slug'] = unique_slug('categories', $data['slug']);
         Database::insert('categories', $data);
+        Auth::logActivity('category_create', 'Created category: ' . $data['name']);
         flash_set('success', 'Category created successfully.');
     }
     header('Location: ' . admin_url('categories'));
@@ -88,6 +96,7 @@ if ($action === 'delete') {
             }
         }
         Database::delete('categories', 'id = ?', [$id]);
+        Auth::logActivity('category_delete', 'Deleted category #' . $id . (!empty($cat['name']) ? ': ' . $cat['name'] : ''));
         flash_set('success', 'Category deleted successfully.');
     }
     header('Location: ' . admin_url('categories'));
@@ -125,10 +134,10 @@ include ADMIN_PATH . 'layout/header.php';
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h4 class="mb-0"><i class="bi bi-folder me-2"></i>Categories</h4>
-    <div>
-        <span class="badge bg-light text-dark me-2">Total: <?php echo count($categories); ?></span>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge bg-light text-dark">Total: <?php echo count($categories); ?></span>
         <a href="<?php echo url('categories'); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-eye me-1"></i>View All
         </a>
@@ -163,7 +172,7 @@ include ADMIN_PATH . 'layout/header.php';
                             </tr>
                             <?php else: foreach($categories as $c): 
                                 $hasImage = !empty($c['image']);
-                                $imgUrl = $hasImage ? (strpos($c['image'], 'http') === 0 ? $c['image'] : upload_url($c['image'])) : image_url('placeholder.jpg');
+                                $imgUrl = media_url($c['image'] ?? '');
                             ?>
                             <tr>
                                 <td>
@@ -270,7 +279,7 @@ include ADMIN_PATH . 'layout/header.php';
                     <div class="mb-3">
                         <label class="form-label fw-medium">Category Image</label>
                         <?php if (!empty($editCat['image'])): 
-                            $imgUrl = strpos($editCat['image'], 'http') === 0 ? $editCat['image'] : upload_url($editCat['image']);
+                            $imgUrl = media_url($editCat['image']);
                         ?>
                             <div class="mb-2">
                                 <img src="<?php echo $imgUrl; ?>" alt="Current Image" class="category-image-preview" 

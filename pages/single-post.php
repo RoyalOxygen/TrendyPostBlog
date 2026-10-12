@@ -33,6 +33,7 @@ $nextPost = Post::getAdjacent($post['id'], 'next', $post['category_id'] ?? 0);
 // Ad injection data
 $adAfter2 = get_ads('after_para_2', 1);
 $adAfter5 = get_ads('after_para_5', 1);
+$adInAuto = get_ads('in_content_auto', 1);
 
 // SEO setup
 $pageTitle = !empty($post['seo_title']) ? $post['seo_title'] : $post['title'] . ' | ' . Setting::get('site_name', 'TrendyPost');
@@ -48,24 +49,11 @@ $postUrl = post_url($post['slug']);
 // ============================================================
 $shareImage = '';
 
-// Priority 1: Uploaded OG image
 if (!empty($post['og_image'])) {
-    if (filter_var($post['og_image'], FILTER_VALIDATE_URL)) {
-        $shareImage = $post['og_image'];
-    } else {
-        $shareImage = upload_url($post['og_image']);
-    }
-} 
-// Priority 2: Featured image
-elseif (!empty($post['featured_image'])) {
-    if (filter_var($post['featured_image'], FILTER_VALIDATE_URL)) {
-        $shareImage = $post['featured_image'];
-    } else {
-        $shareImage = upload_url($post['featured_image']);
-    }
-} 
-// Priority 3: Default OG image
-else {
+    $shareImage = media_url($post['og_image'], SEO_DEFAULT_IMAGE);
+} elseif (!empty($post['featured_image'])) {
+    $shareImage = media_url($post['featured_image'], SEO_DEFAULT_IMAGE);
+} else {
     $shareImage = SEO_DEFAULT_IMAGE;
 }
 
@@ -84,16 +72,7 @@ $shareTitle = !empty($post['og_title']) ? $post['og_title'] : $post['title'];
 $shareDescription = !empty($post['og_description']) ? $post['og_description'] : $pageDescription;
 
 // Twitter image
-$twitterImage = '';
-if (!empty($post['twitter_image'])) {
-    if (filter_var($post['twitter_image'], FILTER_VALIDATE_URL)) {
-        $twitterImage = $post['twitter_image'];
-    } else {
-        $twitterImage = upload_url($post['twitter_image']);
-    }
-} else {
-    $twitterImage = $shareImage;
-}
+$twitterImage = !empty($post['twitter_image']) ? media_url($post['twitter_image'], $shareImage) : $shareImage;
 
 if (!filter_var($twitterImage, FILTER_VALIDATE_URL)) {
     $twitterImage = rtrim(BASE_URL, '/') . '/' . ltrim($twitterImage, '/');
@@ -106,6 +85,7 @@ if (strpos(BASE_URL, 'https://') === 0) {
 // ============================================================
 // META TAGS
 // ============================================================
+$canonicalUrl = $postUrl;
 $seoMeta = meta_tags($pageTitle, $pageDescription, $post['seo_keywords'] ?? '', $post['meta_robots'] ?? 'index,follow');
 
 // Open Graph tags - using post URL and post image
@@ -177,8 +157,12 @@ $articleSchema = [
     ]
 ];
 $schemaMarkup = schema_jsonld($articleSchema);
+if (class_exists('PublishSeo')) {
+    $post['content'] = PublishSeo::stripFaqBlocks((string) $post['content']);
+}
 
-$featuredImg = $post['featured_image'] ? (filter_var($post['featured_image'], FILTER_VALIDATE_URL) ? $post['featured_image'] : upload_url($post['featured_image'])) : null;
+$featuredImg = !empty($post['featured_image']) ? media_url($post['featured_image'], '') : null;
+if ($featuredImg === '') { $featuredImg = null; }
 $readingTime = reading_time($post['content']);
 
 // Include header
@@ -288,6 +272,9 @@ include INCLUDES_PATH . 'Header.php';
                     <?php if (!empty($adAfter5)): ?>
                     <div data-ad-after-5 style="display:none"><?php echo render_ad($adAfter5[0]); ?></div>
                     <?php endif; ?>
+                    <?php if (!empty($adInAuto)): ?>
+                    <div data-ad-after-3 style="display:none"><?php echo render_ad($adInAuto[0]); ?></div>
+                    <?php endif; ?>
                     
                     <!-- Post Content -->
                     <div class="post-content">
@@ -362,7 +349,7 @@ include INCLUDES_PATH . 'Header.php';
                     <h3>Related Posts</h3>
                     <div class="row">
                         <?php foreach ($relatedPosts as $rp): 
-                            $rpImg = $rp['featured_image'] ? upload_url($rp['featured_image']) : image_url('placeholder.jpg');
+                            $rpImg = media_url($rp['featured_image']);
                         ?>
                         <div class="col-md-4">
                             <article class="post-card">
@@ -399,20 +386,22 @@ include INCLUDES_PATH . 'Header.php';
                             <img src="<?php echo $avatar; ?>" alt="" class="comment-avatar" onerror="this.src='<?php echo image_url('default-avatar.png'); ?>'">
                             <div class="comment-body">
                                 <div class="comment-header">
-                                    <span class="comment-author"><?php echo $comment['display_name'] ?? $comment['author_name']; ?></span>
+                                    <span class="comment-author"><?php echo esc($comment['display_name'] ?? $comment['author_name'] ?? 'Guest'); ?></span>
                                     <span class="comment-date"><?php echo format_date($comment['created_at'], 'M j, Y'); ?></span>
                                     <?php if ($comment['is_pinned']): ?>
                                         <span class="badge bg-warning text-dark ms-2"><i class="bi bi-pin"></i> Pinned</span>
                                     <?php endif; ?>
                                 </div>
-                                <p class="comment-text"><?php echo nl2br(esc_attr($comment['content'])); ?></p>
+                                <p class="comment-text"><?php echo nl2br(esc($comment['content'])); ?></p>
+                                <?php if (!empty($post['allow_comments'])): ?>
                                 <button class="btn btn-link btn-reply p-0" data-comment-id="<?php echo $comment['id']; ?>">
                                     <i class="bi bi-reply"></i> Reply
                                 </button>
+                                <?php endif; ?>
                                 
                                 <!-- Reply Form (hidden) -->
                                 <div id="reply-form-<?php echo $comment['id']; ?>" class="d-none mt-3">
-                                    <form method="post" action="<?php echo api_url('comment'); ?>" class="comment-form" style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                                    <form method="post" action="<?php echo api_url('comment'); ?>" class="js-reply-form" style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
                                         <?php echo csrf_field(); ?>
                                         <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
                                         <input type="hidden" name="parent_id" value="<?php echo $comment['id']; ?>">
@@ -442,10 +431,10 @@ include INCLUDES_PATH . 'Header.php';
                                             <img src="<?php echo $reply['avatar'] ?? image_url('default-avatar.png'); ?>" alt="" class="comment-avatar" style="width:40px;height:40px;" onerror="this.src='<?php echo image_url('default-avatar.png'); ?>'">
                                             <div class="comment-body">
                                                 <div class="comment-header">
-                                                    <span class="comment-author"><?php echo $reply['display_name'] ?? $reply['author_name']; ?></span>
+                                                    <span class="comment-author"><?php echo esc($reply['display_name'] ?? $reply['author_name'] ?? 'Guest'); ?></span>
                                                     <span class="comment-date"><?php echo format_date($reply['created_at'], 'M j, Y'); ?></span>
                                                 </div>
-                                                <p class="comment-text"><?php echo nl2br(esc_attr($reply['content'])); ?></p>
+                                                <p class="comment-text"><?php echo nl2br(esc($reply['content'])); ?></p>
                                             </div>
                                         </div>
                                     </div>
@@ -460,7 +449,13 @@ include INCLUDES_PATH . 'Header.php';
                     
                     <!-- Comment Form -->
                     <div class="comment-form mt-4">
+                        <?php if (empty($post['allow_comments'])): ?>
+                        <div class="alert alert-secondary mb-0">Comments are closed for this post.</div>
+                        <?php elseif (!Auth::check() && !(string) Setting::get('allow_guest_comments', '1')): ?>
+                        <div class="alert alert-info mb-0">Please <a href="<?php echo url('login'); ?>">log in</a> to leave a comment.</div>
+                        <?php else: ?>
                         <h4>Leave a Comment</h4>
+                        <div id="commentFeedback"></div>
                         <form id="ajaxCommentForm" method="post" action="<?php echo api_url('comment'); ?>">
                             <?php echo csrf_field(); ?>
                             <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
@@ -496,6 +491,7 @@ include INCLUDES_PATH . 'Header.php';
                                 </button>
                             </div>
                         </form>
+                        <?php endif; ?>
                     </div>
                 </section>
                 
@@ -510,7 +506,7 @@ include INCLUDES_PATH . 'Header.php';
                     <?php 
                     $ep = Post::getPopular(1)[0] ?? null;
                     if ($ep):
-                        $epImg = $ep['featured_image'] ? upload_url($ep['featured_image']) : image_url('placeholder.jpg');
+                        $epImg = media_url($ep['featured_image']);
                     ?>
                     <div class="editors-pick-featured">
                         <img src="<?php echo $epImg; ?>" alt="<?php echo esc_attr($ep['title']); ?>" loading="lazy">
@@ -526,7 +522,7 @@ include INCLUDES_PATH . 'Header.php';
                     <?php endif; ?>
                     
                     <?php foreach (array_slice(Post::getPopular(4), 1, 3) as $sPost): 
-                        $spImg = $sPost['featured_image'] ? upload_url($sPost['featured_image']) : image_url('placeholder.jpg');
+                        $spImg = media_url($sPost['featured_image']);
                     ?>
                     <div class="sidebar-post">
                         <div class="post-thumb">
@@ -547,12 +543,18 @@ include INCLUDES_PATH . 'Header.php';
                     <?php echo render_ad($sAds[0]); ?>
                 </div>
                 <?php endif; ?>
+                <?php $sbAds = get_ads('sidebar_bottom', 1); if (!empty($sbAds)): ?>
+                <div class="ad-container ad-sidebar mt-3">
+                    <div class="ad-label">Advertisement</div>
+                    <?php echo render_ad($sbAds[0]); ?>
+                </div>
+                <?php endif; ?>
                 
                 <!-- Most Popular Widget -->
                 <div class="widget most-popular-widget">
                     <h5 class="widget-title">Most Popular</h5>
                     <?php foreach (Post::getPopular(4) as $mp): 
-                        $mpImg = $mp['featured_image'] ? upload_url($mp['featured_image']) : image_url('placeholder.jpg');
+                        $mpImg = media_url($mp['featured_image']);
                     ?>
                     <div class="sidebar-post">
                         <div class="post-thumb">
@@ -684,44 +686,29 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const response = await fetch('<?php echo api_url('comment'); ?>', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: JSON.stringify(data)
                 });
                 
-                const result = await response.json();
+                const result = JSON.parse(await response.text());
                 
                 // Re-enable button
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
                 
                 if (result.success) {
-                    // Show success message
                     showAlert(commentForm, 'success', result.message);
-                    
-                    // Clear the form
                     commentForm.querySelector('textarea[name="content"]').value = '';
-                    
-                    // If moderated, show message and don't display comment
-                    if (result.moderation) {
-                        setTimeout(() => {
-                            clearAlerts(commentForm);
-                        }, 5000);
-                    } else {
-                        if (result.comment) {
-                            addCommentToList(result.comment);
-                        }
-                        setTimeout(() => {
-                            clearAlerts(commentForm);
-                        }, 5000);
+                    if (!result.moderation && result.comment) {
+                        addCommentToList(result.comment);
                     }
                 } else {
                     showAlert(commentForm, 'danger', result.message || 'Error posting comment. Please try again.');
-                    setTimeout(() => {
-                        clearAlerts(commentForm);
-                    }, 5000);
                 }
             } catch (error) {
                 console.error('Comment Error:', error);
@@ -752,7 +739,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    document.querySelectorAll('.comment-form form').forEach(function(form) {
+    document.querySelectorAll('.js-reply-form').forEach(function(form) {
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -772,14 +759,16 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const response = await fetch('<?php echo api_url('comment'); ?>', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: JSON.stringify(data)
                 });
                 
-                const result = await response.json();
+                const result = JSON.parse(await response.text());
                 
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
@@ -787,11 +776,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     const alertDiv = document.createElement('div');
                     alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
-                    alertDiv.innerHTML = `
-                        <i class="bi bi-check-circle me-2"></i>
-                        ${result.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
+                    alertDiv.textContent = result.message;
                     this.parentNode.insertBefore(alertDiv, this);
                     this.querySelector('textarea[name="content"]').value = '';
                     setTimeout(() => {
@@ -800,11 +785,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     const alertDiv = document.createElement('div');
                     alertDiv.className = 'alert alert-danger alert-dismissible fade show mt-2';
-                    alertDiv.innerHTML = `
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        ${result.message || 'Error posting reply. Please try again.'}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
+                    alertDiv.textContent = result.message || 'Error posting reply. Please try again.';
                     this.parentNode.insertBefore(alertDiv, this);
                     setTimeout(() => {
                         alertDiv.remove();
@@ -814,6 +795,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Reply Error:', error);
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-danger mt-2';
+                alertDiv.textContent = 'Network error. Please try again.';
+                this.parentNode.insertBefore(alertDiv, this);
             }
         });
     });
@@ -827,12 +812,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const msg = document.getElementById('newsletterMsgSidebar');
         try {
             const res = await fetch('<?php echo api_url('newsletter/subscribe'); ?>', {
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'},
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
                 body: JSON.stringify({email: email})
             });
-            const data = await res.json();
-            msg.innerHTML = '<div class="alert alert-' + (data.success ? 'success' : 'warning') + ' py-1">' + data.message + '</div>';
+            const data = JSON.parse(await res.text());
+            const box = document.createElement('div');
+            box.className = 'alert alert-' + (data.success ? 'success' : 'warning') + ' py-1';
+            box.textContent = data.message || (data.success ? 'Subscribed.' : 'Could not subscribe.');
+            msg.innerHTML = '';
+            msg.appendChild(box);
             if (data.success) document.getElementById('newsletterEmailSidebar').value = '';
         } catch(err) { 
             msg.innerHTML = '<div class="alert alert-danger py-1">Error. Try again.</div>'; 
@@ -847,12 +837,15 @@ document.addEventListener('DOMContentLoaded', function() {
         clearAlerts(form);
         const alertDiv = document.createElement('div');
         alertDiv.className = `alert alert-${type} alert-dismissible fade show mt-3 comment-alert`;
-        const icon = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
-        alertDiv.innerHTML = `
-            <i class="bi ${icon} me-2"></i>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
+        const icon = document.createElement('i');
+        icon.className = 'bi ' + (type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-2';
+        alertDiv.appendChild(icon);
+        alertDiv.appendChild(document.createTextNode(message));
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn-close';
+        closeBtn.setAttribute('data-bs-dismiss', 'alert');
+        alertDiv.appendChild(closeBtn);
         form.parentNode.insertBefore(alertDiv, form);
     }
     

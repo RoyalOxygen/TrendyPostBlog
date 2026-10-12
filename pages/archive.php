@@ -59,7 +59,7 @@ include INCLUDES_PATH . 'Header.php';
                     <div class="alert alert-info">No articles found for this period.</div>
                 <?php else: 
                     foreach($posts as $post): 
-                        $pImg = $post['featured_image'] ? upload_url($post['featured_image']) : image_url('placeholder.jpg'); 
+                        $pImg = media_url($post['featured_image']); 
                 ?>
                     <article class="post-card horizontal-post mb-4">
                         <div class="row g-0">

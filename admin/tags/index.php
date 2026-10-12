@@ -6,11 +6,26 @@ $pageTitle = 'Tags | Admin';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')) {
     $data = ['name'=>sanitize($_POST['name']??''),'slug'=>create_slug($_POST['slug']??$_POST['name']??''),'seo_title'=>sanitize($_POST['seo_title']??''),'seo_description'=>sanitize($_POST['seo_description']??'')];
-    if (!empty($_POST['id'])) { Database::update('tags', $data, 'id = ?', [intval($_POST['id'])]); flash_set('success', 'Tag updated.'); }
-    else { $data['slug'] = unique_slug('tags', $data['slug']); Database::insert('tags', $data); flash_set('success', 'Tag created.'); }
+    if (!empty($_POST['id'])) {
+        Database::update('tags', $data, 'id = ?', [intval($_POST['id'])]);
+        Auth::logActivity('tag_update', 'Updated tag: ' . $data['name']);
+        flash_set('success', 'Tag updated.');
+    } else {
+        $data['slug'] = unique_slug('tags', $data['slug']);
+        Database::insert('tags', $data);
+        Auth::logActivity('tag_create', 'Created tag: ' . $data['name']);
+        flash_set('success', 'Tag created.');
+    }
     header('Location: ' . admin_url('tags')); exit;
 }
-if ($action === 'delete' && verify_csrf($_GET['_token'] ?? '')) { Database::delete('tags', 'id = ?', [intval($_GET['id'] ?? 0)]); flash_set('success', 'Tag deleted.'); header('Location: ' . admin_url('tags')); exit; }
+if ($action === 'delete' && verify_csrf($_GET['_token'] ?? '')) {
+    $tagId = intval($_GET['id'] ?? 0);
+    Database::delete('tags', 'id = ?', [$tagId]);
+    Auth::logActivity('tag_delete', 'Deleted tag #' . $tagId);
+    flash_set('success', 'Tag deleted.');
+    header('Location: ' . admin_url('tags'));
+    exit;
+}
 
 $tags = Tag::getAll(false);
 $editId = ($action === 'edit') ? intval($_GET['id'] ?? 0) : 0;
@@ -18,7 +33,7 @@ $editTag = $editId ? Tag::getById($editId) : null;
 
 include ADMIN_PATH . 'layout/header.php';
 ?>
-<div class="d-flex justify-content-between align-items-center mb-4"><h4 class="mb-0"><i class="bi bi-tags me-2"></i>Tags</h4></div>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2"><h4 class="mb-0"><i class="bi bi-tags me-2"></i>Tags</h4></div>
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card border-0"><div class="card-body"><div class="table-responsive">

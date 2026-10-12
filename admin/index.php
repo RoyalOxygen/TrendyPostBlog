@@ -21,11 +21,29 @@ if (!class_exists('Database')) {
 if (!function_exists('admin_url')) {
     require_once INCLUDES_PATH . 'Helpers.php';
 }
+if (!class_exists('Media')) {
+    require_once INCLUDES_PATH . 'Media.php';
+}
 if (!class_exists('Auth')) {
     require_once INCLUDES_PATH . 'Auth.php';
 }
 if (!class_exists('Post')) {
     require_once INCLUDES_PATH . 'Models.php';
+}
+if (!class_exists('GeminiClient')) {
+    require_once INCLUDES_PATH . 'GeminiClient.php';
+}
+if (!class_exists('AiIngest')) {
+    require_once INCLUDES_PATH . 'AiIngest.php';
+}
+if (!class_exists('PublishSeo')) {
+    require_once INCLUDES_PATH . 'PublishSeo.php';
+}
+if (!class_exists('Mailer')) {
+    require_once INCLUDES_PATH . 'Mailer.php';
+}
+if (!class_exists('SearchIndex')) {
+    require_once INCLUDES_PATH . 'SearchIndex.php';
 }
 
 // Auth::init() is already called from frontend, but call it if this is accessed directly
@@ -69,6 +87,9 @@ $routes = [
     'menus' => ADMIN_PATH . 'menus/index.php',
     'settings' => ADMIN_PATH . 'settings/index.php',
     'profile' => ADMIN_PATH . 'users/profile.php',
+    'ai-sources' => ADMIN_PATH . 'ai-sources/index.php',
+    'activity' => ADMIN_PATH . 'activity/index.php',
+    'messages' => ADMIN_PATH . 'messages/index.php',
 ];
 
 $handler = $routes[$route] ?? null;

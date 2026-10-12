@@ -33,6 +33,29 @@ class Post {
     private static function unixNow(): int {
         return time();
     }
+
+    private static function textFields(): array {
+        return [
+            'title', 'excerpt', 'content', 'featured_image_alt', 'featured_image_caption',
+            'seo_title', 'seo_description', 'seo_keywords', 'focus_keyword', 'secondary_keywords',
+            'og_title', 'og_description', 'twitter_title', 'twitter_description',
+            'original_title', 'article_section',
+        ];
+    }
+
+    private static function decodePost(?array $post): ?array {
+        if (!$post) {
+            return $post;
+        }
+        return decode_text_fields($post, self::textFields());
+    }
+
+    private static function decodePosts(array $posts): array {
+        foreach ($posts as $i => $post) {
+            $posts[$i] = self::decodePost($post);
+        }
+        return $posts;
+    }
     
     public static function getBySlug(string $slug): ?array {
         $post = Database::fetchOne(
@@ -51,6 +74,7 @@ class Post {
         );
         
         if ($post) {
+            $post = self::decodePost($post);
             $post['tags'] = self::getTags($post['id']);
             $post['meta'] = self::getMeta($post['id']);
         }
@@ -59,7 +83,7 @@ class Post {
     }
     
     public static function getById(int $id): ?array {
-        return Database::fetchOne(
+        return self::decodePost(Database::fetchOne(
             "SELECT p.*, u.username, u.display_name as author_name, u.avatar as author_avatar,
                     c.name as category_name, c.slug as category_slug, c.color as category_color
              FROM posts p
@@ -67,7 +91,7 @@ class Post {
              LEFT JOIN categories c ON p.category_id = c.id
              WHERE p.id = ? LIMIT 1",
             [$id]
-        );
+        ));
     }
     
     public static function getList(array $filters = [], int $page = 1, int $perPage = 10): array {
@@ -155,7 +179,7 @@ class Post {
         $params[] = $perPage;
         $params[] = $offset;
         
-        return Database::fetchAll($sql, $params);
+        return self::decodePosts(Database::fetchAll($sql, $params));
     }
     
     public static function count(array $filters = []): int {
@@ -221,7 +245,7 @@ class Post {
     }
     
     public static function getFeatured(int $limit = 5): array {
-        return Database::fetchAll(
+        return self::decodePosts(Database::fetchAll(
             "SELECT p.*, u.username, u.display_name as author_name, u.avatar as author_avatar,
                     c.name as category_name, c.slug as category_slug, c.color as category_color
              FROM posts p
@@ -231,13 +255,13 @@ class Post {
                AND UNIX_TIMESTAMP(p.published_at) <= UNIX_TIMESTAMP(NOW())
                AND p.published_at IS NOT NULL
                AND p.is_featured = 1
-             ORDER BY p.published_at DESC LIMIT ?",
+              ORDER BY p.published_at DESC LIMIT ?",
             [$limit]
-        );
+        ));
     }
     
     public static function getBreaking(int $limit = 3): array {
-        return Database::fetchAll(
+        return self::decodePosts(Database::fetchAll(
             "SELECT p.*, c.name as category_name, c.slug as category_slug, c.color as category_color
              FROM posts p
              LEFT JOIN categories c ON p.category_id = c.id
@@ -247,11 +271,11 @@ class Post {
                AND p.is_breaking = 1
              ORDER BY p.published_at DESC LIMIT ?",
             [$limit]
-        );
+        ));
     }
     
     public static function getPopular(int $limit = 5): array {
-        return Database::fetchAll(
+        return self::decodePosts(Database::fetchAll(
             "SELECT p.*, u.username, u.display_name as author_name,
                     c.name as category_name, c.slug as category_slug, c.color as category_color
              FROM posts p
@@ -262,11 +286,11 @@ class Post {
                AND p.published_at IS NOT NULL
              ORDER BY p.view_count DESC LIMIT ?",
             [$limit]
-        );
+        ));
     }
     
     public static function getRelated(int $postId, int $categoryId, int $limit = 4): array {
-        return Database::fetchAll(
+        return self::decodePosts(Database::fetchAll(
             "SELECT p.*, u.display_name as author_name, c.name as category_name, c.slug as category_slug
              FROM posts p
              LEFT JOIN users u ON p.author_id = u.id
@@ -278,11 +302,11 @@ class Post {
                AND p.published_at IS NOT NULL
              ORDER BY p.published_at DESC LIMIT ?",
             [$postId, $categoryId, $limit]
-        );
+        ));
     }
     
     public static function getLatest(int $limit = 6): array {
-        return Database::fetchAll(
+        return self::decodePosts(Database::fetchAll(
             "SELECT p.*, u.username, u.display_name as author_name, u.avatar as author_avatar,
                     c.name as category_name, c.slug as category_slug, c.color as category_color
              FROM posts p
@@ -293,7 +317,7 @@ class Post {
                AND p.published_at IS NOT NULL
              ORDER BY p.published_at DESC LIMIT ?",
             [$limit]
-        );
+        ));
     }
     
     public static function incrementViews(int $postId): void {
@@ -342,14 +366,14 @@ class Post {
             $params[] = $categoryId;
         }
         
-        return Database::fetchOne(
+        return self::decodePost(Database::fetchOne(
             "SELECT p.id, p.title, p.slug, p.featured_image 
              FROM posts p 
              WHERE {$where} 
              ORDER BY p.published_at {$order}, p.id {$order} 
              LIMIT 1",
             $params
-        );
+        ));
     }
     
     /**
@@ -525,6 +549,12 @@ class Page {
     public static function getMenuPages(): array {
         return Database::fetchAll(
             "SELECT * FROM pages WHERE status = 'published' AND show_in_menu = 1 ORDER BY menu_order, title"
+        );
+    }
+
+    public static function getPublished(): array {
+        return Database::fetchAll(
+            "SELECT * FROM pages WHERE status = 'published' ORDER BY updated_at DESC, title"
         );
     }
     
@@ -734,19 +764,27 @@ class SEOSetting {
 class NewsletterModel {
     
     public static function subscribe(string $email, string $firstName = '', string $lastName = ''): array {
+        $email = strtolower(trim($email));
+        if (!is_valid_email($email)) {
+            return ['success' => false, 'message' => 'Please enter a valid email address.'];
+        }
         $existing = Database::fetchOne("SELECT id, status FROM subscribers WHERE email = ? LIMIT 1", [$email]);
         
         if ($existing) {
             if ($existing['status'] === 'active') {
-                return ['success' => false, 'message' => 'You are already subscribed.'];
+                return ['success' => true, 'already' => true, 'message' => 'You are already subscribed to our newsletter.'];
             }
+            $token = random_string(32);
             Database::update('subscribers', [
                 'status' => 'active',
                 'first_name' => sanitize($firstName),
                 'last_name' => sanitize($lastName),
-                'unsubscribed_at' => null
+                'unsubscribed_at' => null,
+                'unsubscribe_token' => hash('sha256', $token),
+                'ip_address' => client_ip(),
             ], 'id = ?', [$existing['id']]);
-            return ['success' => true, 'message' => 'Welcome back! You are re-subscribed.'];
+            self::sendConfirmEmail($email, $token, $firstName);
+            return ['success' => true, 'message' => 'Welcome back! You are subscribed again.'];
         }
         
         $token = random_string(32);
@@ -756,15 +794,40 @@ class NewsletterModel {
             'last_name' => sanitize($lastName),
             'source' => 'website',
             'ip_address' => client_ip(),
-            'unsubscribe_token' => hash('sha256', $token)
+            'unsubscribe_token' => hash('sha256', $token),
+            'status' => 'active',
         ]);
+        self::sendConfirmEmail($email, $token, $firstName);
         
-        return ['success' => true, 'message' => 'Thank you for subscribing!'];
+        return ['success' => true, 'message' => 'Thank you for subscribing! Check your inbox for confirmation.'];
+    }
+
+    private static function sendConfirmEmail(string $email, string $token, string $firstName = ''): void {
+        if (!class_exists('Mailer')) {
+            return;
+        }
+        try {
+            $site = Setting::get('site_name', 'TrendyPost');
+            $unsub = url('newsletter/unsubscribe?token=' . urlencode($token));
+            $html = '<p>You are subscribed to <strong>' . esc($site) . '</strong>.</p>'
+                . '<p>We will send the latest stories to this address.</p>'
+                . '<p style="font-size:13px;color:#666;">To unsubscribe anytime: <a href="' . esc($unsub) . '">' . esc($unsub) . '</a></p>';
+            Mailer::send($email, 'You are subscribed to ' . $site, $html, $firstName);
+        } catch (Throwable $e) {
+            error_log('Newsletter confirm email failed: ' . $e->getMessage());
+        }
     }
     
     public static function unsubscribe(string $token): bool {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
         $hash = hash('sha256', $token);
-        $sub = Database::fetchOne("SELECT id FROM subscribers WHERE unsubscribe_token = ? LIMIT 1", [$hash]);
+        $sub = Database::fetchOne(
+            "SELECT id FROM subscribers WHERE unsubscribe_token = ? OR unsubscribe_token = ? LIMIT 1",
+            [$hash, $token]
+        );
         if (!$sub) return false;
         
         Database::update('subscribers', [
@@ -772,6 +835,22 @@ class NewsletterModel {
             'unsubscribed_at' => date('Y-m-d H:i:s')
         ], 'id = ?', [$sub['id']]);
         
+        return true;
+    }
+
+    public static function unsubscribeByEmail(string $email): bool {
+        $email = strtolower(trim($email));
+        if (!is_valid_email($email)) {
+            return false;
+        }
+        $sub = Database::fetchOne("SELECT id FROM subscribers WHERE email = ? LIMIT 1", [$email]);
+        if (!$sub) {
+            return false;
+        }
+        Database::update('subscribers', [
+            'status' => 'unsubscribed',
+            'unsubscribed_at' => date('Y-m-d H:i:s')
+        ], 'id = ?', [$sub['id']]);
         return true;
     }
     

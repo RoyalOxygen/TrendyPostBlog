@@ -10,8 +10,13 @@ define('TRENDYPOST', true);
 require_once __DIR__ . '/config/config.php';
 require_once INCLUDES_PATH . 'Database.php';
 require_once INCLUDES_PATH . 'Helpers.php';
+require_once INCLUDES_PATH . 'Media.php';
 require_once INCLUDES_PATH . 'Auth.php';
 require_once INCLUDES_PATH . 'Models.php';
+require_once INCLUDES_PATH . 'Mailer.php';
+require_once INCLUDES_PATH . 'SearchIndex.php';
+require_once INCLUDES_PATH . 'GeminiClient.php';
+require_once INCLUDES_PATH . 'PublishSeo.php';
 
 // Start session and init auth
 Auth::init();
@@ -53,6 +58,12 @@ if (str_starts_with($route, 'admin/') || str_starts_with($route, 'admin')) {
         require_once $adminFile;
         exit;
     }
+}
+
+if (preg_match('/^[a-zA-Z0-9\-]{8,64}\.txt$/', $route)) {
+    $_GET['key'] = $route;
+    require PAGES_PATH . 'indexnow-key.php';
+    exit;
 }
 
 // Track analytics - skip api routes
@@ -127,10 +138,13 @@ class Router {
         
         // Newsletter
         $this->get('newsletter/subscribe', PAGES_PATH . 'newsletter/subscribe.php');
+        $this->post('newsletter/subscribe', PAGES_PATH . 'newsletter/subscribe.php');
         $this->get('newsletter/unsubscribe', PAGES_PATH . 'newsletter/unsubscribe.php');
+        $this->post('newsletter/unsubscribe', PAGES_PATH . 'newsletter/unsubscribe.php');
         
         // Contact
         $this->get('contact', PAGES_PATH . 'contact.php');
+        $this->post('contact', PAGES_PATH . 'contact.php');
         
         // Sitemap
         $this->get('sitemap.xml', PAGES_PATH . 'sitemap.php');

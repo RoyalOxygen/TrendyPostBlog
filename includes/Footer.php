@@ -15,7 +15,12 @@ $siteName = Setting::get('site_name', 'TrendyPost');
 ?>
 
     <!-- Footer Ad -->
-    <?php $footerAds = get_ads('footer_banner', 1); if (!empty($footerAds)): ?>
+    <?php
+    $footerAds = get_ads('footer_banner', 1);
+    if (empty($footerAds)) {
+        $footerAds = get_ads('mobile_footer', 1);
+    }
+    if (!empty($footerAds)): ?>
     <div class="container mb-3">
         <div class="text-center">
             <?php echo render_ad($footerAds[0]); ?>
@@ -114,7 +119,7 @@ $siteName = Setting::get('site_name', 'TrendyPost');
                         <?php 
                         $popular = Post::getPopular(6);
                         foreach ($popular as $pop):
-                            $img = $pop['featured_image'] ? upload_url($pop['featured_image']) : image_url('placeholder.jpg');
+                            $img = media_url($pop['featured_image']);
                         ?>
                         <a href="<?php echo post_url($pop['slug']); ?>" class="insta-item" style="display:block;aspect-ratio:1;overflow:hidden;border-radius:4px;">
                             <img src="<?php echo $img; ?>" alt="<?php echo esc_attr($pop['title']); ?>" class="img-fluid" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
@@ -177,6 +182,10 @@ $siteName = Setting::get('site_name', 'TrendyPost');
     });
     </script>
     
+    <?php foreach (array_merge(get_ads_by_location('popunder', 2), get_ads_by_location('vignette', 2)) as $scriptAd): ?>
+        <?php echo render_ad($scriptAd); ?>
+    <?php endforeach; ?>
+
     <!-- Sticky/Floating Ad -->
     <?php $floatingAds = get_ads('floating_bottom', 1); if (!empty($floatingAds)): ?>
     <div class="floating-ad" style="position:fixed;bottom:0;left:0;right:0;z-index:999;background:rgba(255,255,255,0.95);box-shadow:0 -2px 10px rgba(0,0,0,0.1);padding:10px;text-align:center;display:flex;align-items:center;justify-content:center;gap:10px;">
@@ -199,22 +208,23 @@ $siteName = Setting::get('site_name', 'TrendyPost');
         try {
             const res = await fetch('<?php echo api_url('newsletter/subscribe'); ?>', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
                 body: JSON.stringify({email: email})
             });
-            const data = await res.json();
-            msg.innerHTML = '<div class="alert alert-' + (data.success ? 'success' : 'warning') + ' py-1" style="font-size:14px;">' + data.message + '</div>';
+            const data = JSON.parse(await res.text());
+            const box = document.createElement('div');
+            box.className = 'alert alert-' + (data.success ? 'success' : 'warning') + ' py-1';
+            box.style.fontSize = '14px';
+            box.textContent = data.message || (data.success ? 'You are subscribed.' : 'Could not subscribe.');
+            msg.innerHTML = '';
+            msg.appendChild(box);
             if (data.success) document.getElementById('newsletterEmail').value = '';
         } catch(err) {
             msg.innerHTML = '<div class="alert alert-danger py-1" style="font-size:14px;">Error subscribing. Please try again.</div>';
         }
     });
     </script>
-    
-    <!-- Search Console Verification -->
-    <?php $gsc = SEOSetting::get('google_verification', ''); if ($gsc): ?>
-    <meta name="google-site-verification" content="<?php echo $gsc; ?>">
-    <?php endif; ?>
     
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1796797159544561"
      crossorigin="anonymous"></script>

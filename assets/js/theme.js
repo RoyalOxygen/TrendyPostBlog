@@ -317,6 +317,7 @@ function injectInContentAds() {
     // Try to fetch ad placements from data attributes
     const adSlots = [];
     if (document.querySelector('[data-ad-after-2]')) adSlots.push({ after: 2, html: document.querySelector('[data-ad-after-2]').innerHTML });
+    if (document.querySelector('[data-ad-after-3]')) adSlots.push({ after: 3, html: document.querySelector('[data-ad-after-3]').innerHTML });
     if (document.querySelector('[data-ad-after-5]')) adSlots.push({ after: 5, html: document.querySelector('[data-ad-after-5]').innerHTML });
     
     adSlots.forEach(slot => {

@@ -61,6 +61,17 @@ A complete, enterprise-grade SEO-first digital publishing platform built with PH
 
 See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 
+## AI Sources
+
+Admins can add source websites under **Admin > AI Sources**. A cron job visits each source on the cadence you set, extracts recent articles, rewrites them for SEO, and saves them as **drafts** in the existing Posts table. Nothing is published automatically.
+
+```bash
+# every minute
+* * * * * php /path/to/trendypost/cron/ai-ingest.php >/dev/null 2>&1
+```
+
+Set the LLM API key, base URL, and model on the same admin page (or via `USER_LLM_API_KEY`, `USER_LLM_BASE_URL`, `USER_LLM_MODEL`). Without a key, ingest still creates drafts from extracted source text.
+
 ## Quick Start
 
 1. Import `database/schema.sql` into MySQL

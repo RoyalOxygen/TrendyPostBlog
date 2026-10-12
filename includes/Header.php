@@ -40,6 +40,12 @@ $currentUser = Auth::user();
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
     <?php echo $seoMeta ?? meta_tags(); ?>
+    <?php $gsc = SEOSetting::get('google_verification', ''); if ($gsc): ?>
+    <meta name="google-site-verification" content="<?php echo esc_attr($gsc); ?>">
+    <?php endif; ?>
+    <?php $bing = SEOSetting::get('bing_verification', ''); if ($bing): ?>
+    <meta name="msvalidate.01" content="<?php echo esc_attr($bing); ?>">
+    <?php endif; ?>
     
     <!-- Open Graph -->
     <?php echo $ogTags ?? og_tags(); ?>
@@ -67,6 +73,10 @@ $currentUser = Auth::user();
     <!-- Schema JSON-LD -->
     <?php echo $schemaMarkup ?? ''; ?>
     
+    <?php $adsenseId = Setting::get('google_adsense_id', ''); if ($adsenseId): ?>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<?php echo esc_attr($adsenseId); ?>" crossorigin="anonymous"></script>
+    <?php endif; ?>
+
     <!-- Google Analytics -->
     <?php $gaId = SEOSetting::get('google_analytics_4', ''); if ($gaId): ?>
     <script async src="https://www.googletagmanager.com/gtag/js?id=<?php echo $gaId; ?>"></script>
@@ -207,13 +217,21 @@ $currentUser = Auth::user();
                         <?php endforeach; ?>
                     </div>
                 </div>
+                <?php $bnAds = get_ads('breaking_news', 1); if (!empty($bnAds)): ?>
+                <div class="ms-3 d-none d-md-block"><?php echo render_ad($bnAds[0]); ?></div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     <?php endif; ?>
     
     <!-- Header Ad -->
-    <?php $headerAds = get_ads('header_banner', 1); if (!empty($headerAds)): ?>
+    <?php
+    $headerAds = get_ads('header_banner', 1);
+    if (empty($headerAds) && device_type() === 'mobile') {
+        $headerAds = get_ads('mobile_header', 1);
+    }
+    if (!empty($headerAds)): ?>
     <div class="container mt-3">
         <div class="text-center">
             <?php echo render_ad($headerAds[0]); ?>

@@ -143,15 +143,35 @@ class Auth {
     /**
      * Login user
      */
+    public static function loginLimit(): int {
+        $value = intval(Setting::get('max_login_attempts', MAX_LOGIN_ATTEMPTS));
+        return max(1, min(50, $value ?: MAX_LOGIN_ATTEMPTS));
+    }
+
+    public static function lockoutSeconds(): int {
+        $value = intval(Setting::get('lockout_duration', LOCKOUT_DURATION));
+        return max(60, min(86400, $value ?: LOCKOUT_DURATION));
+    }
+
+    public static function isProtectedUser(?array $user): bool {
+        if (!$user) {
+            return false;
+        }
+        if (($user['role_name'] ?? '') === 'super_admin') {
+            return true;
+        }
+        return intval($user['role_id'] ?? 0) === 1;
+    }
+
     public static function login(string $email, string $password, bool $remember = false): array {
-        // Rate limiting check
         $ip = client_ip();
-        $attempts = self::getLoginAttempts($ip);
-        if ($attempts >= MAX_LOGIN_ATTEMPTS) {
+        $maxAttempts = self::loginLimit();
+        $lockout = self::lockoutSeconds();
+
+        if (self::isIpLocked($ip, $maxAttempts, $lockout)) {
             return ['success' => false, 'message' => 'Too many login attempts. Please try again later.'];
         }
-        
-        // Find user
+
         $user = Database::fetchOne(
             "SELECT u.*, r.name as role_name, r.display_name as role_display, r.permissions as role_perms 
              FROM users u 
@@ -159,31 +179,42 @@ class Auth {
              WHERE u.email = ? OR u.username = ? LIMIT 1",
             [$email, $email]
         );
-        
+
+        if ($user && !empty($user['locked_until']) && strtotime($user['locked_until']) > time()) {
+            return ['success' => false, 'message' => 'Too many login attempts. Please try again later.'];
+        }
+
         if (!$user) {
             self::incrementLoginAttempts($ip);
             return ['success' => false, 'message' => 'Invalid credentials.'];
         }
-        
+
         if ($user['status'] === 'banned') {
             return ['success' => false, 'message' => 'Your account has been banned.'];
         }
-        
+
         if ($user['status'] === 'pending') {
             return ['success' => false, 'message' => 'Please verify your email first.'];
         }
-        
-        // Check password
+
         if (!verify_password($password, $user['password_hash'])) {
             self::incrementLoginAttempts($ip);
-            return ['success' => false, 'message' => 'Invalid credentials.'];
+            $fails = intval($user['login_attempts'] ?? 0) + 1;
+            $update = ['login_attempts' => $fails];
+            if ($fails >= $maxAttempts) {
+                $update['locked_until'] = date('Y-m-d H:i:s', time() + $lockout);
+            }
+            Database::update('users', $update, 'id = ?', [$user['id']]);
+            if ($fails >= $maxAttempts) {
+                return ['success' => false, 'message' => 'Too many login attempts. Please try again later.'];
+            }
+            $left = $maxAttempts - $fails;
+            return ['success' => false, 'message' => 'Invalid credentials. ' . $left . ' attempt' . ($left === 1 ? '' : 's') . ' remaining.'];
         }
-        
-        // Login success
+
         self::clearLoginAttempts($ip);
         self::setUserSession($user);
-        
-        // Update last login
+
         Database::update('users', [
             'last_login_at' => date('Y-m-d H:i:s'),
             'last_login_ip' => $ip,
@@ -255,6 +286,20 @@ class Auth {
         ]);
         
         self::logActivity('register', 'New user registered: ' . $data['username'], $userId);
+
+        if (!class_exists('Setting') && defined('INCLUDES_PATH')) {
+            require_once INCLUDES_PATH . 'Models.php';
+        }
+        if (!class_exists('Mailer') && defined('INCLUDES_PATH')) {
+            require_once INCLUDES_PATH . 'Mailer.php';
+        }
+        if (class_exists('Mailer') && (string) Setting::get('notify_welcome_email', '1')) {
+            Mailer::sendWelcome([
+                'email' => $data['email'],
+                'username' => $data['username'],
+                'display_name' => $data['display_name'] ?? $data['username']
+            ]);
+        }
         
         return ['success' => true, 'user_id' => $userId, 'message' => 'Registration successful! You can now log in.'];
     }
@@ -355,26 +400,40 @@ class Auth {
         }
     }
     
-    /**
-     * Get login attempts from IP
-     */
-    private static function getLoginAttempts(string $ip): int {
-        return (int) ($_SESSION['login_attempts_' . md5($ip)] ?? 0);
+    private static function loginAttemptKey(string $ip): string {
+        return 'login_lock_' . md5($ip);
     }
-    
-    /**
-     * Increment login attempts
-     */
+
+    private static function isIpLocked(string $ip, int $maxAttempts, int $lockout): bool {
+        $row = $_SESSION[self::loginAttemptKey($ip)] ?? null;
+        if (!is_array($row)) {
+            return false;
+        }
+        $until = intval($row['until'] ?? 0);
+        if ($until > 0 && $until <= time()) {
+            unset($_SESSION[self::loginAttemptKey($ip)]);
+            return false;
+        }
+        return intval($row['count'] ?? 0) >= $maxAttempts && $until > time();
+    }
+
     private static function incrementLoginAttempts(string $ip): void {
-        $key = 'login_attempts_' . md5($ip);
-        $_SESSION[$key] = ($_SESSION[$key] ?? 0) + 1;
+        $maxAttempts = self::loginLimit();
+        $lockout = self::lockoutSeconds();
+        $key = self::loginAttemptKey($ip);
+        $row = $_SESSION[$key] ?? ['count' => 0, 'until' => 0];
+        if (intval($row['until'] ?? 0) > 0 && intval($row['until']) <= time()) {
+            $row = ['count' => 0, 'until' => 0];
+        }
+        $row['count'] = intval($row['count'] ?? 0) + 1;
+        if ($row['count'] >= $maxAttempts) {
+            $row['until'] = time() + $lockout;
+        }
+        $_SESSION[$key] = $row;
     }
-    
-    /**
-     * Clear login attempts
-     */
+
     private static function clearLoginAttempts(string $ip): void {
-        unset($_SESSION['login_attempts_' . md5($ip)]);
+        unset($_SESSION[self::loginAttemptKey($ip)]);
     }
     
     /**
@@ -382,13 +441,17 @@ class Auth {
      */
     public static function logActivity(string $type, string $message, ?int $userId = null): void {
         $uid = $userId ?? (self::$currentUser['id'] ?? null);
-        Database::insert('activity_logs', [
-            'user_id' => $uid,
-            'type' => $type,
-            'message' => $message,
-            'ip_address' => client_ip(),
-            'created_at' => date('Y-m-d H:i:s')
-        ]);
+        try {
+            Database::insert('activity_logs', [
+                'user_id' => $uid,
+                'type' => $type,
+                'message' => $message,
+                'ip_address' => client_ip(),
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        } catch (Exception $e) {
+            error_log('Activity log failed: ' . $e->getMessage());
+        }
     }
     
     /**
@@ -407,6 +470,14 @@ class Auth {
             'reset_token' => hash('sha256', $token),
             'reset_expires' => $expires
         ], 'id = ?', [$user['id']]);
+
+        if (!class_exists('Mailer') && defined('INCLUDES_PATH')) {
+            require_once INCLUDES_PATH . 'Mailer.php';
+        }
+        if (class_exists('Mailer')) {
+            Mailer::sendPasswordReset($user, $token);
+        }
+        self::logActivity('password_reset_request', 'Password reset requested for ' . $user['email'], (int) $user['id']);
         
         return ['success' => true, 'token' => $token, 'user' => $user];
     }
@@ -479,6 +550,20 @@ class Auth {
         
         Database::update('users', ['password_hash' => hash_password($new)], 'id = ?', [$userId]);
         return ['success' => true, 'message' => 'Password changed successfully.'];
+    }
+
+    public static function setPassword(int $userId, string $new): array {
+        if (strlen($new) < PASSWORD_MIN_LENGTH) {
+            return ['success' => false, 'message' => 'New password must be at least ' . PASSWORD_MIN_LENGTH . ' characters.'];
+        }
+        Database::update('users', [
+            'password_hash' => hash_password($new),
+            'login_attempts' => 0,
+            'locked_until' => null,
+            'reset_token' => null,
+            'reset_expires' => null,
+        ], 'id = ?', [$userId]);
+        return ['success' => true, 'message' => 'Password updated.'];
     }
 }
 

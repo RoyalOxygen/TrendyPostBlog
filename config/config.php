@@ -15,18 +15,24 @@ if (!defined('TRENDYPOST')) {
 // BASE URL CONFIGURATION - CENTRALIZED
 // ============================================================
 // Auto-detect base URL or set manually for production
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? 'https://' : 'http://';
+$forwardedProto = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+$forwardedProto = explode(',', $forwardedProto)[0];
+$httpsOn = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['SERVER_PORT'] ?? 80) == 443)
+    || $forwardedProto === 'https'
+    || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] !== 'off');
+$protocol = $httpsOn ? 'https://' : 'http://';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
 $basePath = dirname($scriptName);
 $basePath = ($basePath == '/' || $basePath == '\\') ? '/' : $basePath . '/';
 
-// PRODUCTION: Set your domain - UNCOMMENTED AND CONFIGURED
-define('BASE_URL', 'https://www.trendypost.com.ng/');
-
-// DEVELOPMENT: Auto-detected (only if not set above)
-if (!defined('BASE_URL')) {
-    define('BASE_URL', $protocol . $host . $basePath);
+if (getenv('TRENDYPOST_BASE_URL')) {
+    define('BASE_URL', rtrim(getenv('TRENDYPOST_BASE_URL'), '/') . '/');
+} elseif (($host ?? '') !== 'www.trendypost.com.ng' && ($host ?? '') !== 'trendypost.com.ng' && ($host ?? '') !== '') {
+    define('BASE_URL', $protocol . $host . ($basePath === '/' ? '/' : $basePath));
+} else {
+    define('BASE_URL', 'https://www.trendypost.com.ng/');
 }
 
 // Clean base URL (no trailing slash for building paths)
@@ -36,10 +42,10 @@ define('BASE_PATH', '');
 // ============================================================
 // DATABASE CONFIGURATION
 // ============================================================
-define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
-define('DB_NAME', $_ENV['DB_NAME'] ?? 'xhubhyfj_this_dbs_trendypost');
-define('DB_USER', $_ENV['DB_USER'] ?? 'xhubhyfj_User_20_trendypost_dbs');
-define('DB_PASS', $_ENV['DB_PASS'] ?? 'ilove_oxygen');
+define('DB_HOST', getenv('DB_HOST') ?: ($_ENV['DB_HOST'] ?? '127.0.0.1'));
+define('DB_NAME', getenv('DB_NAME') ?: ($_ENV['DB_NAME'] ?? 'trendypost'));
+define('DB_USER', getenv('DB_USER') ?: ($_ENV['DB_USER'] ?? 'trendypost'));
+define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : ($_ENV['DB_PASS'] ?? 'trendypost'));
 define('DB_CHARSET', 'utf8mb4');
 define('DB_COLLATE', 'utf8mb4_unicode_ci');
 
@@ -48,8 +54,8 @@ define('DB_COLLATE', 'utf8mb4_unicode_ci');
 // ============================================================
 define('APP_NAME', 'TrendyPost');
 define('APP_VERSION', '1.0.0');
-define('APP_ENV', $_ENV['APP_ENV'] ?? 'production'); // Changed to production
-define('APP_DEBUG', false); // Disable debug in production
+define('APP_ENV', getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'development'));
+define('APP_DEBUG', APP_ENV !== 'production');
 define('APP_TIMEZONE', $_ENV['APP_TIMEZONE'] ?? 'Africa/Lagos');
 define('APP_LOCALE', $_ENV['APP_LOCALE'] ?? 'en');
 
@@ -133,8 +139,6 @@ if (APP_DEBUG) {
 // ============================================================
 // TIMEZONE & LOCALE
 // ============================================================
-// In config.php
-define('APP_TIMEZONE', 'Africa/Lagos'); // Or your actual timezone
 date_default_timezone_set(APP_TIMEZONE);
 
 // ============================================================
@@ -142,7 +146,7 @@ date_default_timezone_set(APP_TIMEZONE);
 // ============================================================
 ini_set('session.cookie_httponly', '1');
 ini_set('session.use_only_cookies', '1');
-ini_set('session.cookie_secure', '1'); // Force secure cookies in production
+ini_set('session.cookie_secure', $httpsOn ? '1' : '0');
 ini_set('session.cookie_samesite', 'Strict');
 ini_set('session.gc_maxlifetime', SESSION_LIFETIME);
 ini_set('session.cookie_lifetime', SESSION_LIFETIME);

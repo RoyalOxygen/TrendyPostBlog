@@ -3,20 +3,22 @@ if (!defined('ADMIN')) die('Direct access not permitted.');
 $user = Auth::user();
 $success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')) {
-    if (!empty($_POST['current_password']) && !empty($_POST['new_password'])) {
-        $result = Auth::changePassword($user['id'], $_POST['current_password'], $_POST['new_password']);
+    if (!empty($_POST['current_password']) || !empty($_POST['new_password'])) {
+        $result = Auth::changePassword($user['id'], $_POST['current_password'] ?? '', $_POST['new_password'] ?? '');
         if (!$result['success']) { $error = $result['message']; }
-        else { $success = true; }
+        else { $success = true; flash_set('success', 'Password changed.'); header('Location: ' . admin_url('profile')); exit; }
+    } else {
+        $update = ['display_name'=>sanitize($_POST['display_name']??''),'first_name'=>sanitize($_POST['first_name']??''),'last_name'=>sanitize($_POST['last_name']??''),'bio'=>sanitize($_POST['bio']??'')];
+        Auth::updateProfile($user['id'], $update);
+        flash_set('success', 'Profile updated.');
+        header('Location: ' . admin_url('profile'));
+        exit;
     }
-    $update = ['display_name'=>sanitize($_POST['display_name']??''),'first_name'=>sanitize($_POST['first_name']??''),'last_name'=>sanitize($_POST['last_name']??''),'bio'=>sanitize($_POST['bio']??'')];
-    Database::update('users', $update, 'id = ?', [$user['id']]);
-    Auth::updateProfile($user['id'], $update);
-    if (!isset($error)) { flash_set('success', 'Profile updated.'); header('Location: ' . admin_url('profile')); exit; }
 }
 $pageTitle = 'My Profile | Admin';
 include ADMIN_PATH . 'layout/header.php';
 ?>
-<div class="d-flex justify-content-between align-items-center mb-4"><h4 class="mb-0"><i class="bi bi-person me-2"></i>My Profile</h4></div>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2"><h4 class="mb-0"><i class="bi bi-person me-2"></i>My Profile</h4></div>
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card border-0"><div class="card-body">

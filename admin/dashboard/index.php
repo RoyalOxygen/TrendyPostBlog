@@ -20,9 +20,16 @@ include ADMIN_PATH . 'layout/header.php';
 
 <div class="container-fluid">
     <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
-        <span class="text-muted"><?php echo date('F j, Y'); ?></span>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="<?php echo admin_url('ai-sources'); ?>" class="btn btn-sm btn-success"><i class="bi bi-robot me-1"></i>AI Sources</a>
+            <a href="<?php echo admin_url('posts&status=draft'); ?>" class="btn btn-sm btn-outline-secondary">Review drafts</a>
+            <?php if (Auth::isAdmin() || Auth::can('contact.view')): ?>
+            <a href="<?php echo admin_url('messages'); ?>" class="btn btn-sm btn-outline-warning"><i class="bi bi-inbox me-1"></i>Inbox<?php $nm = Database::count('contact_messages', "status = 'new'"); if ($nm): ?> (<?php echo $nm; ?>)<?php endif; ?></a>
+            <?php endif; ?>
+            <span class="text-muted align-self-center"><?php echo date('F j, Y'); ?></span>
+        </div>
     </div>
     
     <!-- Stats Cards -->
@@ -80,25 +87,25 @@ include ADMIN_PATH . 'layout/header.php';
     <!-- Second Row Stats -->
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-6">
-            <div class="card border-0 p-3 text-center">
+            <div class="card border-0 p-3 text-center h-100">
                 <h5 class="text-primary mb-1"><?php echo $stats['posts']['draft']; ?></h5>
                 <small class="text-muted">Draft Posts</small>
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 p-3 text-center">
+            <div class="card border-0 p-3 text-center h-100">
                 <h5 class="text-warning mb-1"><?php echo $stats['posts']['scheduled']; ?></h5>
                 <small class="text-muted">Scheduled</small>
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 p-3 text-center">
+            <div class="card border-0 p-3 text-center h-100">
                 <h5 class="text-success mb-1"><?php echo $stats['categories']; ?></h5>
                 <small class="text-muted">Categories</small>
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="card border-0 p-3 text-center">
+            <div class="card border-0 p-3 text-center h-100">
                 <h5 class="text-info mb-1"><?php echo $stats['subscribers']; ?></h5>
                 <small class="text-muted">Subscribers</small>
             </div>
@@ -110,11 +117,13 @@ include ADMIN_PATH . 'layout/header.php';
         <!-- Page Views Chart -->
         <div class="col-lg-8">
             <div class="card border-0">
-                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 px-4">
+                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 px-4 flex-wrap gap-2">
                     <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Page Views (Last 7 Days)</h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="viewsChart" height="100"></canvas>
+                    <div class="chart-box">
+                        <canvas id="viewsChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -122,7 +131,7 @@ include ADMIN_PATH . 'layout/header.php';
         <!-- Popular Posts -->
         <div class="col-lg-4">
             <div class="card border-0">
-                <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 px-4 flex-wrap gap-2">
                     <h5 class="mb-0"><i class="bi bi-fire me-2"></i>Popular Posts</h5>
                 </div>
                 <div class="card-body">
@@ -130,7 +139,7 @@ include ADMIN_PATH . 'layout/header.php';
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <span class="badge bg-success">#<?php echo $idx + 1; ?></span>
                         <div class="flex-grow-1 min-width-0">
-                            <a href="<?php echo post_url($pp['slug']); ?>" class="text-decoration-none d-block text-truncate fw-semibold"><?php echo $pp['title']; ?></a>
+                            <a href="<?php echo post_url($pp['slug']); ?>" class="text-decoration-none d-block text-truncate fw-semibold"><?php echo esc($pp['title']); ?></a>
                             <small class="text-muted"><?php echo format_number($pp['view_count']); ?> views</small>
                         </div>
                     </div>
@@ -145,7 +154,7 @@ include ADMIN_PATH . 'layout/header.php';
         <!-- Recent Posts -->
         <div class="col-lg-6">
             <div class="card border-0">
-                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 px-4">
+                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 px-4 flex-wrap gap-2">
                     <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Posts</h5>
                     <a href="<?php echo admin_url('posts'); ?>" class="btn btn-sm btn-outline-success">View All</a>
                 </div>
@@ -172,7 +181,7 @@ include ADMIN_PATH . 'layout/header.php';
         <!-- Recent Comments -->
         <div class="col-lg-6">
             <div class="card border-0">
-                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 px-4">
+                <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 px-4 flex-wrap gap-2">
                     <h5 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Recent Comments</h5>
                     <a href="<?php echo admin_url('comments'); ?>" class="btn btn-sm btn-outline-success">View All</a>
                 </div>

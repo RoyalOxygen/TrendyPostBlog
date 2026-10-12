@@ -36,7 +36,7 @@ include INCLUDES_PATH . 'Header.php';
                 </form>
                 <?php if ($query && empty($posts)): ?>
                 <div class="alert alert-info">No results found for &ldquo;<?php echo esc_attr($query); ?>&rdquo;. Try different keywords.</div>
-                <?php elseif ($query): foreach ($posts as $post): $pImg = $post['featured_image'] ? upload_url($post['featured_image']) : image_url('placeholder.jpg'); ?>
+                <?php elseif ($query): foreach ($posts as $post): $pImg = media_url($post['featured_image']); ?>
                 <article class="post-card horizontal-post mb-4">
                     <div class="row g-0">
                         <div class="col-md-4">
@@ -56,7 +56,7 @@ include INCLUDES_PATH . 'Header.php';
             <aside class="col-lg-4">
                 <div class="widget">
                     <h5 class="widget-title">Popular Posts</h5>
-                    <?php foreach (Post::getPopular(4) as $mp): $mpImg = $mp['featured_image'] ? upload_url($mp['featured_image']) : image_url('placeholder.jpg'); ?>
+                    <?php foreach (Post::getPopular(4) as $mp): $mpImg = media_url($mp['featured_image']); ?>
                     <div class="sidebar-post">
                         <div class="post-thumb"><img src="<?php echo $mpImg; ?>" alt="" loading="lazy"></div>
                         <div class="post-info"><h6><a href="<?php echo post_url($mp['slug']); ?>"><?php echo $mp['title']; ?></a></h6></div>
