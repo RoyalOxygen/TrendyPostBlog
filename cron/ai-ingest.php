@@ -25,6 +25,9 @@ if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
 }
 
 try {
+    if (class_exists('Analytics')) {
+        Analytics::pruneOldData(180);
+    }
     $results = AiIngest::ingestDueSources();
     if (PHP_SAPI === 'cli') {
         echo json_encode($results, JSON_PRETTY_PRINT) . PHP_EOL;

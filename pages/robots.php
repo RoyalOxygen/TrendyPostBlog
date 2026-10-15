@@ -1,10 +1,57 @@
 <?php
 if (!defined('TRENDYPOST')) { define('TRENDYPOST', true); require_once __DIR__.'/../config/config.php'; require_once INCLUDES_PATH.'Database.php'; require_once INCLUDES_PATH.'Helpers.php'; require_once INCLUDES_PATH.'Models.php'; }
 header('Content-Type: text/plain; charset=UTF-8');
-$robots = trim((string) SEOSetting::getRobotsTxt());
-if ($robots === '') {
-    $robots = "User-agent: *\nDisallow: /admin/\nDisallow: /api/\nDisallow: /login\nDisallow: /register\nDisallow: /forgot-password\nDisallow: /reset-password\nDisallow: /preview/\nDisallow: /install/\nAllow: /\n\nSitemap: " . url('sitemap.xml');
+
+$sitemapUrl = url('sitemap.xml');
+$requiredDisallow = [
+    'Disallow: /admin/',
+    'Disallow: /api/',
+    'Disallow: /login',
+    'Disallow: /register',
+    'Disallow: /logout',
+    'Disallow: /forgot-password',
+    'Disallow: /reset-password',
+    'Disallow: /preview/',
+    'Disallow: /install/',
+];
+
+$stored = trim((string) SEOSetting::getRobotsTxt());
+$lines = $stored !== '' ? preg_split('/\r\n|\r|\n/', $stored) : [];
+
+// Drop any rule that would hide public posts/pages from Google.
+$lines = array_values(array_filter($lines, static function (string $line): bool {
+    $normalized = strtolower(trim($line));
+    if ($normalized === '') {
+        return true;
+    }
+    if ($normalized === 'disallow: /' || $normalized === 'disallow: /*' || $normalized === 'disallow:/') {
+        return false;
+    }
+    foreach (['disallow: /post', 'disallow: /page', 'disallow: /category', 'disallow: /tag', 'disallow: /author', 'disallow: /sitemap'] as $blocked) {
+        if (str_starts_with($normalized, $blocked)) {
+            return false;
+        }
+    }
+    if (str_starts_with($normalized, 'sitemap:')) {
+        return false; // rebuilt below
+    }
+    return true;
+}));
+
+// Make sure the required private areas are always excluded.
+$present = array_map(static fn(string $l): string => strtolower(trim($l)), $lines);
+foreach ($requiredDisallow as $rule) {
+    if (!in_array(strtolower($rule), $present, true)) {
+        $lines[] = $rule;
+        $present[] = strtolower($rule);
+    }
 }
+if (!in_array('allow: /', $present, true)) {
+    $lines[] = 'Allow: /';
+}
+
+$robots = trim(implode("\n", $lines));
+$robots .= "\n\nSitemap: " . $sitemapUrl;
 echo $robots;
 echo "
 

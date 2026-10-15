@@ -66,9 +66,19 @@ if (preg_match('/^[a-zA-Z0-9\-]{8,64}\.txt$/', $route)) {
     exit;
 }
 
-// Track analytics - skip api routes
-if (!str_starts_with($route, 'api/')) {
-    track_page_view();
+// Track analytics - exclude api/auth/preview/feed/sitemap routes, plus admin, staff and bots
+$untracked = ['api/', 'login', 'register', 'logout', 'forgot-password', 'reset-password', 'preview/', 'newsletter/', 'sitemap', 'robots.txt', 'feed'];
+$shouldTrack = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET';
+if ($shouldTrack) {
+    foreach ($untracked as $prefix) {
+        if ($route === rtrim($prefix, '/') || str_starts_with($route, $prefix)) {
+            $shouldTrack = false;
+            break;
+        }
+    }
+}
+if ($shouldTrack) {
+    track_page_view(page_view_key($route));
 }
 
 // Route dispatch
@@ -253,28 +263,81 @@ class Router {
 }
 
 /**
- * Track page view for analytics
+ * Map a frontend route to a stable analytics page key.
  */
-function track_page_view(): void {
+function page_view_key(string $route): string {
+    if ($route === '' || $route === 'home' || $route === 'index.php') {
+        return 'home';
+    }
+    $segment = explode('/', $route)[0];
+    $known = ['post', 'category', 'categories', 'tag', 'tags', 'author', 'authors', 'page', 'archive', 'search', 'contact', 'feed'];
+    return in_array($segment, $known, true) ? $segment : 'other';
+}
+
+/**
+ * Track a page view. Only real, non-staff visitors are counted. Unique
+ * visitors are recorded per day, and page views are deduplicated per visitor
+ * so the home page (and every other page) gets its own honest view count.
+ */
+function track_page_view(string $pageKey = 'other'): void {
+    if (!is_trackable_visitor()) {
+        return;
+    }
+
     $today = date('Y-m-d');
+    $visitor = visitor_hash();
     $device = device_type();
     $deviceColumn = 'device_' . $device;
-    
+    $sourceColumn = traffic_source() . '_traffic';
+
     try {
-        $exists = Database::fetchOne("SELECT id FROM site_analytics WHERE date = ?", [$today]);
-        
-        if ($exists) {
-            Database::query(
-                "UPDATE site_analytics SET page_views = page_views + 1, {$deviceColumn} = {$deviceColumn} + 1 WHERE date = ?",
-                [$today]
+        $visitorStmt = Database::query(
+            "INSERT IGNORE INTO daily_visitors (date, visitor_hash, is_new) VALUES (?, ?, 0)",
+            [$today, $visitor]
+        );
+        $isNewVisitorToday = $visitorStmt->rowCount() > 0;
+
+        $isReturning = false;
+        if ($isNewVisitorToday) {
+            $isReturning = (bool) Database::fetchOne(
+                "SELECT 1 FROM daily_visitors WHERE visitor_hash = ? AND date < ? LIMIT 1",
+                [$visitor, $today]
             );
+            if ($isReturning) {
+                Database::query(
+                    "UPDATE daily_visitors SET is_new = 0 WHERE date = ? AND visitor_hash = ?",
+                    [$today, $visitor]
+                );
+            }
+        }
+
+        Database::query(
+            "INSERT INTO page_views (date, page_key, visitor_hash, hits) VALUES (?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE hits = hits + 1",
+            [$today, $pageKey, $visitor]
+        );
+
+        $exists = Database::fetchOne("SELECT id FROM site_analytics WHERE date = ?", [$today]);
+        if ($exists) {
+            $sql = "UPDATE site_analytics SET page_views = page_views + 1,
+                        {$deviceColumn} = {$deviceColumn} + 1,
+                        {$sourceColumn} = {$sourceColumn} + 1";
+            if ($isNewVisitorToday) {
+                $sql .= ", unique_visitors = unique_visitors + 1, sessions = sessions + 1";
+                $sql .= $isReturning ? ", returning_visitors = returning_visitors + 1" : ", new_visitors = new_visitors + 1";
+            }
+            $sql .= " WHERE date = ?";
+            Database::query($sql, [$today]);
         } else {
             Database::insert('site_analytics', [
                 'date' => $today,
                 'page_views' => 1,
                 'unique_visitors' => 1,
                 'sessions' => 1,
-                $deviceColumn => 1
+                'new_visitors' => $isReturning ? 0 : 1,
+                'returning_visitors' => $isReturning ? 1 : 0,
+                $sourceColumn => 1,
+                $deviceColumn => 1,
             ]);
         }
     } catch (Exception $e) {

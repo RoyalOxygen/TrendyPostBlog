@@ -613,6 +613,32 @@ CREATE TABLE `site_analytics` (
   UNIQUE KEY `uk_date` (`date`),
   KEY `idx_date` (`date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `daily_visitors`;
+CREATE TABLE `daily_visitors` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `date` date NOT NULL,
+  `visitor_hash` char(64) NOT NULL,
+  `is_new` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_date_visitor` (`date`,`visitor_hash`),
+  KEY `idx_date` (`date`),
+  KEY `idx_visitor` (`visitor_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `page_views`;
+CREATE TABLE `page_views` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `date` date NOT NULL,
+  `page_key` varchar(100) NOT NULL,
+  `visitor_hash` char(64) NOT NULL,
+  `hits` int(10) unsigned NOT NULL DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_page_visitor` (`date`,`page_key`,`visitor_hash`),
+  KEY `idx_page` (`page_key`),
+  KEY `idx_date` (`date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `subscribers`;
 CREATE TABLE `subscribers` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,

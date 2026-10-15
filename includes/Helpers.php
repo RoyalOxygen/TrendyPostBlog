@@ -709,6 +709,128 @@ function is_desktop(): bool {
 }
 
 // ============================================================
+// TRAFFIC / VISITOR TRACKING HELPERS
+// ============================================================
+
+/**
+ * Name of the first-party cookie that identifies a unique visitor.
+ */
+function visitor_cookie_name(): string {
+    return 'tp_visitor';
+}
+
+/**
+ * Stable, anonymous per-visitor identifier (hashed, never the raw cookie).
+ */
+function visitor_hash(): string {
+    static $hash = null;
+    if ($hash !== null) {
+        return $hash;
+    }
+
+    $cookie = (string) ($_COOKIE[visitor_cookie_name()] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/i', $cookie)) {
+        try {
+            $cookie = bin2hex(random_bytes(16));
+        } catch (Exception $e) {
+            $cookie = md5(uniqid('tp', true));
+        }
+        $_COOKIE[visitor_cookie_name()] = $cookie;
+        if (!headers_sent()) {
+            setcookie(visitor_cookie_name(), $cookie, [
+                'expires' => time() + 31536000,
+                'path' => '/',
+                'secure' => function_exists('request_is_https') ? request_is_https() : false,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        }
+    }
+
+    $hash = hash('sha256', strtolower($cookie) . '|' . (defined('ENCRYPTION_KEY') ? ENCRYPTION_KEY : 'trendypost'));
+    return $hash;
+}
+
+/**
+ * Detect bots, crawlers, preview probes, and uptime monitors.
+ */
+function is_bot_request(): bool {
+    $ua = strtolower(trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')));
+    if ($ua === '') {
+        return true;
+    }
+    $needles = [
+        'bot', 'crawl', 'spider', 'slurp', 'bingpreview', 'facebookexternalhit', 'embedly',
+        'quora link preview', 'pinterest', 'vkshare', 'whatsapp', 'telegrambot', 'discordbot',
+        'google-read-aloud', 'mediapartners', 'adsbot', 'headless', 'phantomjs', 'python-requests',
+        'curl/', 'wget', 'libwww', 'httpclient', 'java/', 'okhttp', 'go-http-client',
+        'mcai-preview', 'monitoring', 'uptime', 'pingdom', 'gtmetrix', 'pagespeed', 'lighthouse',
+        'semrush', 'ahrefs', 'mj12', 'dotbot', 'yandex', 'baiduspider', 'duckduckbot', 'applebot',
+        'gptbot', 'chatgpt', 'ccbot', 'claude', 'anthropic', 'bytespider', 'petalbot', 'dataforseo',
+        'serpstat', 'screaming frog', 'preview', 'facebookcatalog', 'ahrefssiteaudit',
+    ];
+    foreach ($needles as $needle) {
+        if (str_contains($ua, $needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Detect signed-in admin/editor/staff so their own visits are never counted.
+ */
+function is_staff_visitor(): bool {
+    if (!class_exists('Auth') || !Auth::check()) {
+        return false;
+    }
+    if (Auth::isEditor()) {
+        return true;
+    }
+    return Auth::canAny([
+        'dashboard.view', 'analytics.view', 'posts.view', 'pages.view', 'comments.view',
+        'media.view', 'users.view', 'settings.manage', 'seo.manage', 'ads.view', 'messages.view',
+    ]);
+}
+
+/**
+ * Whether the current request should be counted as real traffic.
+ */
+function is_trackable_visitor(): bool {
+    return !is_bot_request() && !is_staff_visitor();
+}
+
+/**
+ * Classify the current page view's traffic source.
+ */
+function traffic_source(): string {
+    $referrer = trim((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+    if ($referrer === '') {
+        return 'direct';
+    }
+    $host = parse_url($referrer, PHP_URL_HOST);
+    $selfHost = parse_url(BASE_URL, PHP_URL_HOST);
+    if (!$host) {
+        return 'direct';
+    }
+    $host = strtolower(preg_replace('/^www\./', '', $host));
+    if ($selfHost && strtolower(preg_replace('/^www\./', '', $selfHost)) === $host) {
+        return 'direct';
+    }
+    foreach (['google.', 'bing.', 'yahoo.', 'duckduckgo.', 'yandex.', 'baidu.', 'ecosia.', 'ask.', 'aol.', 'brave.'] as $engine) {
+        if (str_contains($host, $engine)) {
+            return 'organic';
+        }
+    }
+    foreach (['facebook.', 'fb.', 't.co', 'twitter.', 'x.com', 'instagram.', 'pinterest.', 'linkedin.', 'reddit.', 'whatsapp', 'telegram', 'youtube.', 'tiktok.'] as $social) {
+        if (str_contains($host, $social)) {
+            return 'social';
+        }
+    }
+    return 'referral';
+}
+
+// ============================================================
 // FORMATTING HELPERS
 // ============================================================
 

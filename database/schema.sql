@@ -566,6 +566,35 @@ CREATE TABLE site_analytics (
     INDEX idx_date (date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- One row per unique visitor per day. Used to compute unique visitors and
+-- to tell new visitors apart from returning ones. Admin/bot traffic is never
+-- inserted here.
+CREATE TABLE daily_visitors (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    date DATE NOT NULL,
+    visitor_hash CHAR(64) NOT NULL,
+    is_new TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_date_visitor (date, visitor_hash),
+    INDEX idx_date (date),
+    INDEX idx_visitor (visitor_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Aggregated page views per page per day, deduplicated by visitor so the
+-- unique count per page (home page included) can be derived.
+CREATE TABLE page_views (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    date DATE NOT NULL,
+    page_key VARCHAR(100) NOT NULL,
+    visitor_hash CHAR(64) NOT NULL,
+    hits INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_page_visitor (date, page_key, visitor_hash),
+    INDEX idx_page (page_key),
+    INDEX idx_date (date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE audit_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED,

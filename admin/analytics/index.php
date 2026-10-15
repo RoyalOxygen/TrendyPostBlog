@@ -8,6 +8,8 @@ $viewsData = Analytics::getRecentViews($dayCount);
 $popularPosts = Analytics::getPopularPosts(10);
 $totalViews = array_sum(array_column($viewsData, 'page_views'));
 $totalVisitors = array_sum(array_column($viewsData, 'unique_visitors'));
+$home = Analytics::getHomepageViews($dayCount);
+$traffic = Analytics::getTrafficBreakdown($dayCount);
 $pageTitle = 'Analytics | Admin';
 include ADMIN_PATH . 'layout/header.php';
 ?>
@@ -15,11 +17,19 @@ include ADMIN_PATH . 'layout/header.php';
     <h4 class="mb-0"><i class="bi bi-graph-up me-2"></i>Analytics</h4>
     <div class="btn-group"><a href="<?php echo admin_url('analytics&period=7d'); ?>" class="btn btn-sm <?php echo $period==='7d'?'btn-success':'btn-outline-secondary'; ?>">7 Days</a><a href="<?php echo admin_url('analytics&period=30d'); ?>" class="btn btn-sm <?php echo $period==='30d'?'btn-success':'btn-outline-secondary'; ?>">30 Days</a><a href="<?php echo admin_url('analytics&period=90d'); ?>" class="btn btn-sm <?php echo $period==='90d'?'btn-success':'btn-outline-secondary'; ?>">90 Days</a></div>
 </div>
+<p class="text-muted small mb-3"><i class="bi bi-shield-check me-1"></i>Only real visitors are counted. Signed-in admins/editors, bots, crawlers and preview requests are excluded, and each visitor is counted once per article.</p>
 <div class="row g-3 mb-4">
-    <div class="col-md-4"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-success"><?php echo number_format($totalViews); ?></h3><p class="text-muted mb-0">Total Page Views</p></div></div>
-    <div class="col-md-4"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-info"><?php echo number_format($totalVisitors); ?></h3><p class="text-muted mb-0">Unique Visitors</p></div></div>
-    <div class="col-md-4"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-primary"><?php echo number_format(Post::count()); ?></h3><p class="text-muted mb-0">Total Articles</p></div></div>
+    <div class="col-md-6 col-xl-3"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-success"><?php echo number_format($totalViews); ?></h3><p class="text-muted mb-0">Total Page Views</p></div></div>
+    <div class="col-md-6 col-xl-3"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-info"><?php echo number_format($totalVisitors); ?></h3><p class="text-muted mb-0">Unique Visitors</p></div></div>
+    <div class="col-md-6 col-xl-3"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-warning"><?php echo number_format($home['views']); ?></h3><p class="text-muted mb-0">Homepage Views</p><small class="text-muted"><?php echo number_format($home['unique']); ?> unique visitors</small></div></div>
+    <div class="col-md-6 col-xl-3"><div class="card stat-card border-0 p-4 text-center h-100"><h3 class="text-primary"><?php echo number_format(Post::count()); ?></h3><p class="text-muted mb-0">Total Articles</p></div></div>
 </div>
+<div class="card border-0 mb-4"><div class="card-header bg-white pt-4 px-4"><h5 class="mb-0">Traffic Sources</h5></div><div class="card-body"><div class="row g-3 text-center">
+    <div class="col-6 col-md-3"><h4 class="mb-1"><?php echo number_format($traffic['organic'] ?? 0); ?></h4><span class="text-muted small">Organic (search)</span></div>
+    <div class="col-6 col-md-3"><h4 class="mb-1"><?php echo number_format($traffic['direct'] ?? 0); ?></h4><span class="text-muted small">Direct</span></div>
+    <div class="col-6 col-md-3"><h4 class="mb-1"><?php echo number_format($traffic['social'] ?? 0); ?></h4><span class="text-muted small">Social</span></div>
+    <div class="col-6 col-md-3"><h4 class="mb-1"><?php echo number_format($traffic['referral'] ?? 0); ?></h4><span class="text-muted small">Referral</span></div>
+</div></div></div>
 <div class="card border-0 mb-4"><div class="card-body"><div class="chart-box"><canvas id="analyticsChart"></canvas></div></div></div>
 <div class="card border-0"><div class="card-header bg-white pt-4 px-4"><h5 class="mb-0">Top Articles</h5></div><div class="card-body"><div class="table-responsive">
     <table class="table table-hover"><thead><tr><th>#</th><th>Title</th><th class="text-end">Views</th></tr></thead>

@@ -9,6 +9,26 @@ echo '<?xml version="1.0" encoding="UTF-8"?>'; ?>
 <?php foreach(Post::getList([], 1, 5000) as $post): ?>
 <url><loc><?php echo post_url($post['slug']); ?></loc><lastmod><?php echo date('c', strtotime($post['updated_at'] ?? $post['published_at'] ?? 'now')); ?></lastmod><changefreq>daily</changefreq><priority>0.9</priority><?php if($post['featured_image']): ?><image:image><image:loc><?php echo media_url($post['featured_image']); ?></image:loc><image:title><?php echo esc_attr($post['title']); ?></image:title></image:image><?php endif; ?></url>
 <?php endforeach; ?></urlset>
+<?php elseif ($type === 'news'): ?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+<?php
+$siteName = Setting::get('site_name', 'TrendyPost');
+$newsPosts = Database::fetchAll(
+    "SELECT title, slug, published_at FROM posts
+     WHERE status = 'published'
+       AND published_at IS NOT NULL
+       AND published_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
+       AND UNIX_TIMESTAMP(published_at) <= UNIX_TIMESTAMP(NOW())
+     ORDER BY published_at DESC LIMIT 1000"
+);
+foreach ($newsPosts as $post): ?>
+<url><loc><?php echo post_url($post['slug']); ?></loc>
+<news:news>
+<news:publication><news:name><?php echo esc_attr($siteName); ?></news:name><news:language><?php echo esc_attr(APP_LOCALE); ?></news:language></news:publication>
+<news:publication_date><?php echo date('c', strtotime($post['published_at'])); ?></news:publication_date>
+<news:title><?php echo esc_attr($post['title']); ?></news:title>
+</news:news></url>
+<?php endforeach; ?></urlset>
 <?php elseif ($type === 'categories'): ?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <?php foreach(Category::getAll() as $cat): ?><url><loc><?php echo category_url($cat['slug']); ?></loc><lastmod><?php echo date('c'); ?></lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url><?php endforeach; ?></urlset>
@@ -24,6 +44,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>'; ?>
 <?php else: ?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <sitemap><loc><?php echo url('sitemap-posts.xml'); ?></loc><lastmod><?php echo date('c'); ?></lastmod></sitemap>
+<sitemap><loc><?php echo url('sitemap-news.xml'); ?></loc><lastmod><?php echo date('c'); ?></lastmod></sitemap>
 <sitemap><loc><?php echo url('sitemap-categories.xml'); ?></loc><lastmod><?php echo date('c'); ?></lastmod></sitemap>
 <sitemap><loc><?php echo url('sitemap-tags.xml'); ?></loc><lastmod><?php echo date('c'); ?></lastmod></sitemap>
 <sitemap><loc><?php echo url('sitemap-authors.xml'); ?></loc><lastmod><?php echo date('c'); ?></lastmod></sitemap>

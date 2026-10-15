@@ -77,18 +77,31 @@ $currentUser = Auth::user();
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<?php echo esc_attr($adsenseId); ?>" crossorigin="anonymous"></script>
     <?php endif; ?>
 
-    <!-- Google Analytics -->
-    <?php $gaId = SEOSetting::get('google_analytics_4', ''); if ($gaId): ?>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=<?php echo $gaId; ?>"></script>
+    <!-- Google Tag Manager -->
+    <?php $gtmId = trim((string) SEOSetting::get('gtm_container_id', '')); if ($gtmId): ?>
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','<?php echo esc_attr($gtmId); ?>');</script>
+    <?php endif; ?>
+
+    <!-- Google Analytics (GA4) -->
+    <?php $gaId = trim((string) SEOSetting::get('google_analytics_4', '')); if ($gaId): ?>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=<?php echo esc_attr($gaId); ?>"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', '<?php echo $gaId; ?>');
+        gtag('config', '<?php echo esc_attr($gaId); ?>', { send_page_view: true });
     </script>
     <?php endif; ?>
 </head>
 <body>
+    <?php $gtmBody = trim((string) SEOSetting::get('gtm_container_id', '')); if ($gtmBody): ?>
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?php echo esc_attr($gtmBody); ?>"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <?php endif; ?>
     
     <!-- Top Bar -->
     <div class="top-bar bg-dark text-white py-1">

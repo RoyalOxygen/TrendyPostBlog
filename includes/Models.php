@@ -321,15 +321,36 @@ class Post {
     }
     
     public static function incrementViews(int $postId): void {
-        Database::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?", [$postId]);
-        
-        Database::insert('post_views', [
-            'post_id' => $postId,
-            'ip_address' => client_ip(),
-            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
-            'referrer' => $_SERVER['HTTP_REFERER'] ?? '',
-            'device_type' => device_type()
-        ]);
+        if (function_exists('is_trackable_visitor') && !is_trackable_visitor()) {
+            return;
+        }
+
+        $visitor = function_exists('visitor_hash') ? visitor_hash() : md5(client_ip() . ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+
+        try {
+            $existing = Database::fetchOne(
+                "SELECT id FROM post_views WHERE post_id = ? AND session_id = ? LIMIT 1",
+                [$postId, $visitor]
+            );
+            if ($existing) {
+                Database::query("UPDATE post_views SET viewed_at = CURRENT_TIMESTAMP WHERE id = ?", [$existing['id']]);
+                return;
+            }
+
+            Database::insert('post_views', [
+                'post_id' => $postId,
+                'user_id' => (class_exists('Auth') && Auth::check()) ? Auth::id() : null,
+                'session_id' => $visitor,
+                'ip_address' => client_ip(),
+                'user_agent' => substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+                'referrer' => substr((string) ($_SERVER['HTTP_REFERER'] ?? ''), 0, 500),
+                'device_type' => device_type(),
+            ]);
+
+            Database::query("UPDATE posts SET view_count = view_count + 1 WHERE id = ?", [$postId]);
+        } catch (Exception $e) {
+            error_log('Post view tracking error: ' . $e->getMessage());
+        }
     }
     
     public static function getTags(int $postId): array {
@@ -754,7 +775,7 @@ class SEOSetting {
     }
     
     public static function getRobotsTxt(): string {
-        return self::get('robots_txt', "User-agent: *\nDisallow: /admin/\nDisallow: /api/\nAllow: /\n\nSitemap: /sitemap.xml");
+        return self::get('robots_txt', "User-agent: *\nDisallow: /admin/\nDisallow: /api/\nAllow: /\n\nSitemap: " . url('sitemap.xml'));
     }
 }
 
@@ -910,6 +931,51 @@ class Analytics {
              ORDER BY date ASC",
             [$days]
         );
+    }
+
+    public static function getHomepageViews(int $days = 30): array {
+        return self::getPageTotals('home', $days);
+    }
+
+    public static function getPageTotals(string $pageKey, int $days = 30): array {
+        $row = Database::fetchOne(
+            "SELECT COALESCE(SUM(hits), 0) AS views, COUNT(*) AS unique_visitors
+             FROM page_views
+             WHERE page_key = ? AND date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)",
+            [$pageKey, $days]
+        );
+        return [
+            'views' => (int) ($row['views'] ?? 0),
+            'unique' => (int) ($row['unique_visitors'] ?? 0),
+        ];
+    }
+
+    public static function getTodayUniqueVisitors(): int {
+        return (int) Database::fetchColumn("SELECT COUNT(*) FROM daily_visitors WHERE date = CURDATE()");
+    }
+
+    public static function pruneOldData(int $keepDays = 180): void {
+        try {
+            Database::query("DELETE FROM page_views WHERE date < DATE_SUB(CURDATE(), INTERVAL ? DAY)", [$keepDays]);
+            Database::query("DELETE FROM daily_visitors WHERE date < DATE_SUB(CURDATE(), INTERVAL ? DAY)", [$keepDays]);
+        } catch (Exception $e) {
+            error_log('Analytics prune error: ' . $e->getMessage());
+        }
+    }
+
+    public static function getTrafficBreakdown(int $days = 30): array {
+        $row = Database::fetchOne(
+            "SELECT COALESCE(SUM(organic_traffic), 0) AS organic,
+                    COALESCE(SUM(referral_traffic), 0) AS referral,
+                    COALESCE(SUM(direct_traffic), 0) AS direct,
+                    COALESCE(SUM(social_traffic), 0) AS social,
+                    COALESCE(SUM(new_visitors), 0) AS new_visitors,
+                    COALESCE(SUM(returning_visitors), 0) AS returning_visitors
+             FROM site_analytics
+             WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)",
+            [$days]
+        );
+        return array_map('intval', $row ?: []);
     }
     
     public static function getPopularPosts(int $limit = 10): array {
