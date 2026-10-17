@@ -2,6 +2,29 @@
 if (!defined('ADMIN')) die('Direct access not permitted.');
 Auth::requirePermission('seo.manage');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')) {
+    $action = (string) ($_POST['action'] ?? 'save');
+    if ($action === 'process_queue' && class_exists('SearchIndex')) {
+        $result = SearchIndex::processQueue(50);
+        flash_set('success', sprintf('Indexing queue run: %d sent, %d retried, %d remaining.', $result['succeeded'], $result['failed'], $result['remaining']));
+        header('Location: ' . admin_url('seo')); exit;
+    }
+    if ($action === 'resubmit_all' && class_exists('SearchIndex')) {
+        $count = 0;
+        foreach (Post::getList([], 1, 2000) as $row) {
+            if (!empty($row['slug'])) {
+                SearchIndex::queueUrl(Seo::absolute(post_url($row['slug'])));
+                $count++;
+            }
+        }
+        foreach (Page::getPublished() as $row) {
+            if (!empty($row['slug'])) {
+                SearchIndex::queueUrl(Seo::absolute(page_url($row['slug'])));
+                $count++;
+            }
+        }
+        flash_set('success', $count . ' published URLs queued for indexing.');
+        header('Location: ' . admin_url('seo')); exit;
+    }
     $settings = ['google_verification','bing_verification','google_analytics_4','gtm_container_id','facebook_app_id','facebook_pixel','twitter_site'];
     foreach ($settings as $key) { SEOSetting::set($key, sanitize($_POST[$key] ?? ''), $_POST['group_' . $key] ?? 'general'); }
     SEOSetting::set('robots_txt', (string) ($_POST['robots_txt'] ?? ''), 'robots');
@@ -52,5 +75,18 @@ include ADMIN_PATH . 'layout/header.php';
 
     <button type="submit" class="btn btn-success">Save SEO Settings</button>
     </form>
+</div></div>
+
+<div class="card border-0 mt-4"><div class="card-body">
+    <h6 class="mb-3"><i class="bi bi-cloud-arrow-up me-2"></i>Indexing queue</h6>
+    <?php $queueStats = class_exists('SearchIndex') ? SearchIndex::stats() : ['pending' => 0, 'failed' => 0, 'done' => 0]; ?>
+    <div class="row g-3 mb-3">
+        <div class="col-4"><div class="border rounded p-3 text-center"><div class="h4 mb-0"><?php echo (int) $queueStats['pending']; ?></div><small class="text-muted">Pending</small></div></div>
+        <div class="col-4"><div class="border rounded p-3 text-center"><div class="h4 mb-0 text-warning"><?php echo (int) $queueStats['failed']; ?></div><small class="text-muted">Failed</small></div></div>
+        <div class="col-4"><div class="border rounded p-3 text-center"><div class="h4 mb-0 text-success"><?php echo (int) $queueStats['done']; ?></div><small class="text-muted">Submitted</small></div></div>
+    </div>
+    <p class="text-muted small mb-3">Publishing a post or page queues its URL automatically. Failed submissions are retried with backoff every 10 minutes by <code>cron/indexing.php</code> (up to 5 attempts). Images are submitted through <code>sitemap-images.xml</code>.</p>
+    <form method="POST" class="d-inline"><input type="hidden" name="_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="action" value="process_queue"><button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-repeat me-1"></i>Run queue now</button></form>
+    <form method="POST" class="d-inline ms-2" onsubmit="return confirm('Queue every published post and page for search indexing?');"><input type="hidden" name="_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="action" value="resubmit_all"><button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-send me-1"></i>Re-submit all published URLs</button></form>
 </div></div>
 <?php include ADMIN_PATH . 'layout/footer.php'; ?>

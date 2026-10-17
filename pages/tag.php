@@ -7,10 +7,29 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = POSTS_PER_PAGE;
 $posts = Post::getList(['tag' => $slug], $page, $perPage);
 $total = Post::count(['tag' => $slug]);
-$pageTitle = $tag['name'] . ' | ' . Setting::get('site_name');
-$pageDescription = $tag['seo_description'] ?? 'Articles tagged with ' . $tag['name'];
-$seoMeta = meta_tags($pageTitle, $pageDescription, $tag['seo_keywords'] ?? '');
-$canonicalUrl = canonical_url('tag/' . $slug);
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title((string) $tag['name'], $siteName);
+$pageDescription = $tag['seo_description'] ?? ('Articles and stories tagged "' . $tag['name'] . '" on ' . $siteName . '.');
+$baseUrl = tag_url($slug);
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'keywords' => (string) ($tag['seo_keywords'] ?? $tag['name']),
+    'canonical' => Seo::absolute($baseUrl),
+    'base_url' => Seo::absolute($baseUrl),
+    'page' => $page,
+    'has_next' => ($page * $perPage) < $total,
+    'schema_type' => 'CollectionPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Tags', url('tags')], [$tag['name'], $baseUrl]],
+    'related' => Seo::itemsFromPosts($posts),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header">

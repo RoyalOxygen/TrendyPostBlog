@@ -29,8 +29,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-$pageTitle = 'Contact Us | TrendyPost';
-$seoMeta = meta_tags($pageTitle, 'Contact TrendyPost for inquiries and feedback.', '', 'index,follow');
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title('Contact Us', $siteName);
+$pageDescription = 'Contact ' . $siteName . ' for news tips, inquiries, advertising and feedback.';
+$canonicalUrl = Seo::absolute(url('contact'));
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $canonicalUrl,
+    'schema_type' => 'ContactPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Contact Us', url('contact')]],
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header"><div class="container"><h1>Contact Us</h1></div></section>

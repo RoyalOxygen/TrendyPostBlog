@@ -88,56 +88,41 @@ function getRelevantStories($featuredPosts, $latestPosts, $limit = 3) {
 $relevantStories = getRelevantStories($featuredPosts, $latestPosts, 3);
 
 // SEO
-$pageTitle = Setting::get('seo_default_title');
-$pageDescription = Setting::get('seo_default_description');
-$canonicalUrl = rtrim(BASE_URL, '/') . '/';
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = (string) Setting::get('seo_default_title', SEO_DEFAULT_TITLE);
+$pageDescription = (string) Setting::get('seo_default_description', SEO_DEFAULT_DESCRIPTION);
+$canonicalUrl = Seo::home();
 
-$seoMeta = meta_tags($pageTitle, $pageDescription, Setting::get('seo_default_keywords'), Setting::get('seo_default_robots', 'index,follow'));
-$ogTags = og_tags([
+$homeItems = [];
+foreach (array_merge($featuredPosts, $latestPosts) as $hp) {
+    if (empty($hp['slug'])) {
+        continue;
+    }
+    $homeItems[post_url($hp['slug'])] = [
+        'title' => $hp['title'] ?? '',
+        'url' => Seo::absolute(post_url($hp['slug'])),
+        'image' => !empty($hp['featured_image']) ? Seo::absolute(media_url($hp['featured_image'], '')) : null,
+    ];
+}
+$homeItems = array_values($homeItems);
+
+$seo = Seo::build([
     'title' => $pageTitle,
     'description' => $pageDescription,
+    'keywords' => (string) Setting::get('seo_default_keywords', ''),
+    'robots' => (string) Setting::get('seo_default_robots', 'index,follow'),
+    'canonical' => $canonicalUrl,
     'type' => 'website',
-    'url' => $canonicalUrl
-]);
-$twitterTags = twitter_tags([
-    'title' => $pageTitle,
-    'description' => $pageDescription
+    'schema_type' => 'CollectionPage',
+    'related' => $homeItems,
 ]);
 
-// Schema: WebSite + Organization with proper date formatting
-$schema = [
-    '@graph' => [
-        [
-            '@type' => 'WebSite',
-            'name' => Setting::get('site_name', 'TrendyPost'),
-            'url' => BASE_URL,
-            'potentialAction' => [
-                '@type' => 'SearchAction',
-                'target' => ['@type' => 'EntryPoint', 'urlTemplate' => BASE_URL . 'search?q={search_term_string}'],
-                'query-input' => 'required name=search_term_string'
-            ]
-        ],
-        [
-            '@type' => 'Organization',
-            'name' => Setting::get('site_name', 'TrendyPost'),
-            'url' => BASE_URL,
-            'logo' => image_url('logo.png'),
-            'sameAs' => array_filter([
-                Setting::get('social_facebook', ''),
-                Setting::get('social_twitter', ''),
-                Setting::get('social_instagram', ''),
-                Setting::get('social_youtube', ''),
-                Setting::get('social_linkedin', '')
-            ]),
-            'contactPoint' => [
-                '@type' => 'ContactPoint',
-                'contactType' => 'customer support',
-                'email' => Setting::get('site_email', '')
-            ]
-        ]
-    ]
-];
-$schemaMarkup = schema_jsonld($schema);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 
 include INCLUDES_PATH . 'Header.php';
 ?>

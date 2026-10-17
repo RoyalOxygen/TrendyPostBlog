@@ -36,130 +36,80 @@ $adAfter5 = get_ads('after_para_5', 1);
 $adInAuto = get_ads('in_content_auto', 1);
 
 // SEO setup
-$pageTitle = !empty($post['seo_title']) ? $post['seo_title'] : $post['title'] . ' | ' . Setting::get('site_name', 'TrendyPost');
-$pageDescription = !empty($post['seo_description']) ? $post['seo_description'] : excerpt($post['excerpt'] ?? $post['content'], 160);
-
-// ============================================================
-// POST URL - Use the actual post URL
-// ============================================================
-$postUrl = post_url($post['slug']);
-
-// ============================================================
-// POST IMAGE - Get the image for sharing
-// ============================================================
-$shareImage = '';
-
-if (!empty($post['og_image'])) {
-    $shareImage = media_url($post['og_image'], SEO_DEFAULT_IMAGE);
-} elseif (!empty($post['featured_image'])) {
-    $shareImage = media_url($post['featured_image'], SEO_DEFAULT_IMAGE);
-} else {
-    $shareImage = SEO_DEFAULT_IMAGE;
-}
-
-// Ensure absolute URL for the image
-if (!filter_var($shareImage, FILTER_VALIDATE_URL)) {
-    $shareImage = rtrim(BASE_URL, '/') . '/' . ltrim($shareImage, '/');
-}
-
-// Force HTTPS if site uses HTTPS
-if (strpos(BASE_URL, 'https://') === 0) {
-    $shareImage = str_replace('http://', 'https://', $shareImage);
-}
-
-// Get share title and description
-$shareTitle = !empty($post['og_title']) ? $post['og_title'] : $post['title'];
-$shareDescription = !empty($post['og_description']) ? $post['og_description'] : $pageDescription;
-
-// Twitter image
-$twitterImage = !empty($post['twitter_image']) ? media_url($post['twitter_image'], $shareImage) : $shareImage;
-
-if (!filter_var($twitterImage, FILTER_VALIDATE_URL)) {
-    $twitterImage = rtrim(BASE_URL, '/') . '/' . ltrim($twitterImage, '/');
-}
-
-if (strpos(BASE_URL, 'https://') === 0) {
-    $twitterImage = str_replace('http://', 'https://', $twitterImage);
-}
-
-// ============================================================
-// META TAGS
-// ============================================================
-$canonicalUrl = $postUrl;
-$seoMeta = meta_tags($pageTitle, $pageDescription, $post['seo_keywords'] ?? '', $post['meta_robots'] ?? 'index,follow');
-
-// Open Graph tags - using post URL and post image
-$ogTags = og_tags([
-    'title' => $shareTitle,
-    'description' => $shareDescription,
-    'type' => 'article',
-    'url' => $postUrl,
-    'image' => $shareImage,
-    'image:secure_url' => $shareImage,
-    'image:width' => '1200',
-    'image:height' => '630',
-    'image:type' => 'image/jpeg',
-    'site_name' => Setting::get('site_name', 'TrendyPost'),
-    'locale' => APP_LOCALE,
-    'article:published_time' => $post['published_at'],
-    'article:modified_time' => $post['updated_at'],
-    'article:author' => $post['author_name'] ?? Setting::get('site_name', 'TrendyPost'),
-    'article:section' => $post['category_name'] ?? 'News'
-]);
-
-// Twitter Card tags
-$twitterTags = twitter_tags([
-    'card' => $post['twitter_card'] ?? 'summary_large_image',
-    'title' => !empty($post['twitter_title']) ? $post['twitter_title'] : $shareTitle,
-    'description' => !empty($post['twitter_description']) ? $post['twitter_description'] : $shareDescription,
-    'image' => $twitterImage,
-    'site' => '@trendypost',
-    'image:width' => '1200',
-    'image:height' => '600'
-]);
-
-// ============================================================
-// SCHEMA MARKUP
-// ============================================================
-$tagsSchema = array_map(fn($t) => $t['name'], $post['tags'] ?? []);
-$articleSchema = [
-    '@context' => 'https://schema.org',
-    '@graph' => [
-        [
-            '@type' => $post['schema_type'] ?? 'NewsArticle',
-            'headline' => $post['title'],
-            'description' => $pageDescription,
-            'image' => $shareImage,
-            'datePublished' => $post['published_at'],
-            'dateModified' => $post['updated_at'],
-            'author' => [
-                '@type' => 'Person',
-                'name' => $post['author_name'] ?? 'TrendyPost'
-            ],
-            'publisher' => [
-                '@type' => 'Organization',
-                'name' => Setting::get('site_name', 'TrendyPost'),
-                'logo' => ['@type' => 'ImageObject', 'url' => image_url('logo.png')]
-            ],
-            'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $postUrl],
-            'articleSection' => $post['category_name'] ?? 'News',
-            'keywords' => implode(', ', array_merge($tagsSchema, explode(',', $post['seo_keywords'] ?? ''))),
-            'wordCount' => $post['word_count'] ?? str_word_count(strip_tags($post['content']))
-        ],
-        [
-            '@type' => 'BreadcrumbList',
-            'itemListElement' => [
-                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => ['@id' => BASE_URL]],
-                ['@type' => 'ListItem', 'position' => 2, 'name' => $post['category_name'] ?? 'News', 'item' => ['@id' => category_url($post['category_slug'] ?? '')]],
-                ['@type' => 'ListItem', 'position' => 3, 'name' => $post['title']]
-            ]
-        ]
-    ]
-];
-$schemaMarkup = schema_jsonld($articleSchema);
 if (class_exists('PublishSeo')) {
     $post['content'] = PublishSeo::stripFaqBlocks((string) $post['content']);
 }
+
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$postUrl = post_url($post['slug']);
+$pageTitle = !empty($post['seo_title']) ? $post['seo_title'] : $post['title'] . ' | ' . $siteName;
+$pageDescription = !empty($post['seo_description']) ? $post['seo_description'] : excerpt($post['excerpt'] ?? $post['content'], 160);
+$shareTitle = !empty($post['og_title']) ? $post['og_title'] : $post['title'];
+$shareDescription = !empty($post['og_description']) ? $post['og_description'] : $pageDescription;
+
+$postImages = Seo::postImages($post);
+$shareImage = !empty($postImages[0]['url']) ? $postImages[0]['url'] : Seo::absolute(SEO_DEFAULT_IMAGE);
+$twitterImage = !empty($post['twitter_image'])
+    ? Seo::absolute(media_url($post['twitter_image'], $shareImage))
+    : $shareImage;
+
+$tagNames = array_values(array_filter(array_map(
+    static fn($t) => trim((string) ($t['name'] ?? '')),
+    $post['tags'] ?? []
+)));
+$keywordList = array_filter(array_map('trim', array_merge($tagNames, explode(',', (string) ($post['seo_keywords'] ?? '')))));
+$keywords = implode(', ', array_unique(array_filter($keywordList)));
+
+$breadcrumbs = [['Home', Seo::home()]];
+if (!empty($post['category_name'])) {
+    $breadcrumbs[] = [$post['category_name'], category_url($post['category_slug'] ?? '')];
+}
+$breadcrumbs[] = [$post['title'], null];
+
+$relatedSchema = [];
+foreach ($relatedPosts as $rp) {
+    $relatedSchema[] = [
+        'title' => $rp['title'] ?? '',
+        'url' => !empty($rp['slug']) ? Seo::absolute(post_url($rp['slug'])) : '',
+        'image' => !empty($rp['featured_image']) ? Seo::absolute(media_url($rp['featured_image'], '')) : null,
+    ];
+}
+
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'keywords' => $keywords,
+    'robots' => $post['meta_robots'] ?? 'index,follow',
+    'canonical' => !empty($post['canonical_url']) ? Seo::absolute($post['canonical_url']) : Seo::absolute($postUrl),
+    'type' => 'article',
+    'article_schema_type' => $post['schema_type'] ?? 'NewsArticle',
+    'published' => $post['published_at'] ?? '',
+    'modified' => $post['updated_at'] ?? ($post['published_at'] ?? ''),
+    'author' => $post['author_name'] ?? $siteName,
+    'section' => $post['category_name'] ?? '',
+    'tags' => $tagNames,
+    'og_title' => $shareTitle,
+    'og_description' => $shareDescription,
+    'twitter_title' => $post['twitter_title'] ?? $shareTitle,
+    'twitter_description' => $post['twitter_description'] ?? $shareDescription,
+    'twitter_card' => $post['twitter_card'] ?? 'summary_large_image',
+    'image' => $shareImage,
+    'image_alt' => trim((string) ($post['featured_image_alt'] ?? '')) ?: $post['title'],
+    'image_caption' => $post['featured_image_caption'] ?? '',
+    'twitter_image' => $twitterImage,
+    'breadcrumbs' => $breadcrumbs,
+    'extra_images' => array_slice($postImages, 1),
+    'word_count' => $post['word_count'] ?? str_word_count(strip_tags($post['content'])),
+    'related' => $relatedSchema,
+]);
+
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 
 $featuredImg = !empty($post['featured_image']) ? media_url($post['featured_image'], '') : null;
 if ($featuredImg === '') { $featuredImg = null; }
@@ -895,10 +845,5 @@ document.addEventListener('DOMContentLoaded', function() {
     
 });
 </script>
-
-<!-- Facebook Share Meta Tags -->
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/jpeg">
 
 <?php include INCLUDES_PATH . 'Footer.php'; ?>

@@ -39,7 +39,15 @@ $currentUser = Auth::user();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
-    <?php echo $seoMeta ?? meta_tags(); ?>
+    <?php
+    // Every public page sets $seoMeta via Seo::build(); this fallback keeps
+    // titles/descriptions/robots present even if a page forgets.
+    $seoHead = trim((string) ($seoMeta ?? ''));
+    if ($seoHead === '') {
+        $seoHead = meta_tags(SEO_DEFAULT_TITLE, SEO_DEFAULT_DESCRIPTION, '', 'index,follow');
+    }
+    echo $seoHead;
+    ?>
     <?php $gsc = SEOSetting::get('google_verification', ''); if ($gsc): ?>
     <meta name="google-site-verification" content="<?php echo esc_attr($gsc); ?>">
     <?php endif; ?>
@@ -48,14 +56,26 @@ $currentUser = Auth::user();
     <?php endif; ?>
     
     <!-- Open Graph -->
-    <?php echo $ogTags ?? og_tags(); ?>
-    
+    <?php
+    $ogHead = trim((string) ($ogTags ?? ''));
+    if ($ogHead === '') {
+        $ogHead = og_tags(['title' => $pageTitle ?? SEO_DEFAULT_TITLE, 'description' => $pageDescription ?? SEO_DEFAULT_DESCRIPTION]);
+    }
+    echo $ogHead;
+    ?>
+
     <!-- Twitter Cards -->
-    <?php echo $twitterTags ?? twitter_tags(); ?>
-    
+    <?php
+    $twitterHead = trim((string) ($twitterTags ?? ''));
+    if ($twitterHead === '') {
+        $twitterHead = twitter_tags(['title' => $pageTitle ?? SEO_DEFAULT_TITLE, 'description' => $pageDescription ?? SEO_DEFAULT_DESCRIPTION]);
+    }
+    echo $twitterHead;
+    ?>
+
     <!-- Canonical -->
-    <?php if (!empty($canonicalUrl)): ?>
-    <link rel="canonical" href="<?php echo $canonicalUrl; ?>">
+    <?php if (!empty($canonicalUrl) && stripos($seoHead, 'rel="canonical"') === false): ?>
+    <link rel="canonical" href="<?php echo esc_attr($canonicalUrl); ?>">
     <?php endif; ?>
     
     <!-- Favicon -->
@@ -71,7 +91,7 @@ $currentUser = Auth::user();
     <link href="<?php echo css_url('theme.css'); ?>" rel="stylesheet">
     
     <!-- Schema JSON-LD -->
-    <?php echo $schemaMarkup ?? ''; ?>
+    <?php if (!empty($schemaMarkup)) echo $schemaMarkup; ?>
     
     <?php $adsenseId = Setting::get('google_adsense_id', ''); if ($adsenseId): ?>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<?php echo esc_attr($adsenseId); ?>" crossorigin="anonymous"></script>

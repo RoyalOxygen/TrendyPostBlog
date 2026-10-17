@@ -10,6 +10,7 @@ define('TRENDYPOST', true);
 require_once __DIR__ . '/config/config.php';
 require_once INCLUDES_PATH . 'Database.php';
 require_once INCLUDES_PATH . 'Helpers.php';
+require_once INCLUDES_PATH . 'Seo.php';
 require_once INCLUDES_PATH . 'Media.php';
 require_once INCLUDES_PATH . 'Auth.php';
 require_once INCLUDES_PATH . 'Models.php';

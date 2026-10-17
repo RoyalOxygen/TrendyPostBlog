@@ -1,8 +1,28 @@
 <?php
 if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 $categories = Category::getAll();
-$pageTitle = 'All Categories | TrendyPost';
-$seoMeta = meta_tags($pageTitle, 'Browse all article categories on TrendyPost.');
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title('All Categories', $siteName);
+$pageDescription = 'Browse every news category on ' . $siteName . ' and find the stories you care about.';
+$canonicalUrl = Seo::absolute(url('categories'));
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $canonicalUrl,
+    'schema_type' => 'CollectionPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Categories', url('categories')]],
+    'related' => array_map(static fn($cat) => [
+        'title' => (string) ($cat['name'] ?? ''),
+        'url' => Seo::absolute(category_url((string) ($cat['slug'] ?? ''))),
+    ], array_slice($categories, 0, 10)),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header"><div class="container"><h1><i class="bi bi-grid-3x3-gap"></i> All Categories</h1></div></section>

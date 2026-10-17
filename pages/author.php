@@ -7,9 +7,32 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = POSTS_PER_PAGE;
 $posts = Post::getList(['author'=>$username], $page, $perPage);
 $total = Post::count(['author'=>$username]);
-$pageTitle = ($author['display_name'] ?? $author['username']) . ' | ' . Setting::get('site_name');
-$seoMeta = meta_tags($pageTitle, $author['bio'] ?? '', '');
-$canonicalUrl = canonical_url('author/' . $username);
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$authorName = $author['display_name'] ?? $author['username'];
+$pageTitle = seo_page_title($authorName . ' - Author', $siteName);
+$pageDescription = !empty($author['bio'])
+    ? excerpt($author['bio'], 160)
+    : ('Read the latest articles by ' . $authorName . ' on ' . $siteName . '.');
+$baseUrl = author_url($username);
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => Seo::absolute($baseUrl),
+    'base_url' => Seo::absolute($baseUrl),
+    'page' => $page,
+    'has_next' => ($page * $perPage) < $total,
+    'schema_type' => 'ProfilePage',
+    'author' => $authorName,
+    'breadcrumbs' => [['Home', Seo::home()], ['Authors', url('authors')], [$authorName, $baseUrl]],
+    'related' => Seo::itemsFromPosts($posts),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header"><div class="container">

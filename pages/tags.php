@@ -1,8 +1,28 @@
 <?php
 if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 $tags = Tag::getAll(true);
-$pageTitle = 'Tags | ' . Setting::get('site_name', 'TrendyPost');
-$seoMeta = meta_tags($pageTitle, 'Browse all tags on ' . Setting::get('site_name', 'TrendyPost'));
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title('Tags', $siteName);
+$pageDescription = 'Browse all topics and tags covered by ' . $siteName . '.';
+$canonicalUrl = Seo::absolute(url('tags'));
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $canonicalUrl,
+    'schema_type' => 'CollectionPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Tags', url('tags')]],
+    'related' => array_map(static fn($t) => [
+        'title' => (string) ($t['name'] ?? ''),
+        'url' => Seo::absolute(tag_url((string) ($t['slug'] ?? ''))),
+    ], array_slice($tags, 0, 10)),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header"><div class="container"><h1>Tags</h1></div></section>

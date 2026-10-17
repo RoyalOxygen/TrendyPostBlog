@@ -8,8 +8,28 @@ $authors = Database::fetchAll(
      GROUP BY u.id, u.username, u.display_name, u.bio, u.avatar HAVING post_count > 0
      ORDER BY post_count DESC"
 );
-$pageTitle = 'Authors | ' . Setting::get('site_name', 'TrendyPost');
-$seoMeta = meta_tags($pageTitle, 'Meet the authors at ' . Setting::get('site_name', 'TrendyPost'));
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title('Authors', $siteName);
+$pageDescription = 'Meet the writers and editors behind ' . $siteName . '.';
+$canonicalUrl = Seo::absolute(url('authors'));
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $canonicalUrl,
+    'schema_type' => 'CollectionPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Authors', url('authors')]],
+    'related' => array_map(static fn($a) => [
+        'title' => (string) (($a['display_name'] ?? '') ?: ($a['username'] ?? '')),
+        'url' => Seo::absolute(author_url((string) ($a['username'] ?? ''))),
+    ], array_slice($authors, 0, 10)),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header"><div class="container"><h1>Authors</h1></div></section>

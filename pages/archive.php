@@ -31,9 +31,28 @@ $total = Database::fetchColumn(
 );
 
 $title = $month ? date('F Y', mktime(0,0,0,$month,1,$year)) : $year;
-$pageTitle = "Archive: $title | " . Setting::get('site_name');
-$seoMeta = meta_tags($pageTitle, "Articles from $title", '');
-
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title('Archive: ' . $title, $siteName);
+$pageDescription = 'Browse published articles from ' . $title . ' on ' . $siteName . '.';
+$archiveBase = Seo::absolute(archive_url($year, $month));
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $archiveBase,
+    'base_url' => $archiveBase,
+    'page' => $page,
+    'has_next' => isset($total, $page) && ($page * $perPage) < $total,
+    'schema_type' => 'CollectionPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Archive', url('archive')], [$title]],
+    'related' => isset($posts) ? Seo::itemsFromPosts($posts) : [],
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 

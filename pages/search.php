@@ -12,10 +12,28 @@ if (!empty($query)) {
     $posts = Post::getList(['search' => $query], $page, $perPage);
     $total = Post::count(['search' => $query]);
 }
-$pageTitle = $query ? "Search: $query | TrendyPost" : 'Search | TrendyPost';
-$seoMeta = meta_tags($pageTitle, "Search results for: $query", $query);
-$canonicalUrl = canonical_url('search' . ($query ? '?q=' . urlencode($query) : ''));
-$ogTags = og_tags(['title' => $pageTitle, 'description' => "Search results for: $query", 'type' => 'website', 'url' => $canonicalUrl]);
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = $query ? ('Search: ' . $query . ' | ' . $siteName) : ('Search | ' . $siteName);
+$pageDescription = $query
+    ? ('Search results for "' . $query . '" on ' . $siteName . '.')
+    : ('Search articles and stories on ' . $siteName . '.');
+$canonicalUrl = Seo::absolute(search_url($query));
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $canonicalUrl,
+    'noindex' => true,
+    'schema_type' => 'SearchResultsPage',
+    'breadcrumbs' => [['Home', Seo::home()], ['Search', Seo::absolute(search_url())]],
+    'related' => Seo::itemsFromPosts($posts),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header">

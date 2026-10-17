@@ -595,6 +595,25 @@ CREATE TABLE page_views (
     INDEX idx_date (date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Queue of URLs waiting to be pushed to search engines (IndexNow + Google
+-- Indexing API). A cron worker drains it with retries and exponential
+-- backoff so a temporary API failure never loses an indexing request.
+CREATE TABLE indexing_queue (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    url VARCHAR(500) NOT NULL,
+    url_hash CHAR(40) NOT NULL,
+    type VARCHAR(20) NOT NULL DEFAULT 'URL_UPDATED',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    last_error VARCHAR(500) DEFAULT NULL,
+    available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at DATETIME DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_url_hash (url_hash),
+    INDEX idx_status_available (status, available_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE audit_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED,

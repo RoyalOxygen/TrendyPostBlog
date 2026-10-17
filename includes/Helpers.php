@@ -268,6 +268,21 @@ function excerpt(string $content, int $length = EXCERPT_LENGTH): string {
 }
 
 /**
+ * Append the site name to a page title only when it is not already present.
+ */
+function seo_page_title(string $title, ?string $siteName = null): string {
+    $title = trim(decode_entities($title));
+    $siteName = trim((string) ($siteName ?? Setting::get('site_name', 'TrendyPost')));
+    if ($title === '') {
+        return $siteName;
+    }
+    if ($siteName === '' || stripos($title, $siteName) !== false) {
+        return $title;
+    }
+    return $title . ' | ' . $siteName;
+}
+
+/**
  * Reading time estimation
  */
 function reading_time(string $content): int {

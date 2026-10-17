@@ -21,6 +21,9 @@ if (!class_exists('Database')) {
 if (!function_exists('admin_url')) {
     require_once INCLUDES_PATH . 'Helpers.php';
 }
+if (!class_exists('Seo')) {
+    require_once INCLUDES_PATH . 'Seo.php';
+}
 if (!class_exists('Media')) {
     require_once INCLUDES_PATH . 'Media.php';
 }

@@ -3,13 +3,27 @@ if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 $slug = $_GET['slug'] ?? '';
 $page = Page::getBySlug($slug);
 if (!$page) { http_response_code(404); include PAGES_PATH . 'errors/404.php'; exit; }
-$pageTitle = ($page['seo_title'] ?? $page['title']) . ' | ' . Setting::get('site_name');
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title((string) (!empty($page['seo_title']) ? $page['seo_title'] : $page['title']), $siteName);
 $pageDescription = $page['seo_description'] ?? excerpt($page['content'], 160);
-$seoMeta = meta_tags($pageTitle, $pageDescription);
-$canonicalUrl = canonical_url('page/' . $slug);
-$ogTags = og_tags(['title'=>$pageTitle,'description'=>$pageDescription,'type'=>'website','url'=>$canonicalUrl]);
-$schema = ['@type'=>'WebPage','name'=>$page['title'],'description'=>$pageDescription,'url'=>$canonicalUrl];
-$schemaMarkup = schema_jsonld($schema);
+$pageUrl = page_url($slug);
+$pageImage = !empty($page['featured_image']) ? Seo::absolute(media_url($page['featured_image'], '')) : Seo::absolute(SEO_DEFAULT_IMAGE);
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => Seo::absolute($pageUrl),
+    'image' => $pageImage,
+    'image_alt' => (string) $page['title'],
+    'schema_type' => 'WebPage',
+    'breadcrumbs' => [['Home', Seo::home()], [$page['title'], $pageUrl]],
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header">

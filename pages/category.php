@@ -10,11 +10,29 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = POSTS_PER_PAGE;
 $posts = Post::getList(['category' => $slug], $page, $perPage);
 $total = Post::count(['category' => $slug]);
-$pageTitle = ($category['seo_title'] ?? $category['name']) . ' | ' . Setting::get('site_name');
-$pageDescription = $category['seo_description'] ?? 'Articles in ' . $category['name'];
-$seoMeta = meta_tags($pageTitle, $pageDescription, $category['seo_keywords'] ?? '');
-$canonicalUrl = canonical_url('category/' . $slug);
-$ogTags = og_tags(['title' => $pageTitle, 'description' => $pageDescription, 'type' => 'website', 'url' => $canonicalUrl]);
+$siteName = (string) Setting::get('site_name', 'TrendyPost');
+$pageTitle = seo_page_title((string) (!empty($category['seo_title']) ? $category['seo_title'] : ($category['name'] . ' News & Articles')), $siteName);
+$pageDescription = $category['seo_description'] ?? ('Latest ' . $category['name'] . ' news, analysis and stories from ' . $siteName . '.');
+$baseUrl = category_url($slug);
+$seo = Seo::build([
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'keywords' => (string) ($category['seo_keywords'] ?? ''),
+    'canonical' => Seo::absolute($baseUrl),
+    'base_url' => Seo::absolute($baseUrl),
+    'page' => $page,
+    'has_next' => ($page * $perPage) < $total,
+    'schema_type' => 'CollectionPage',
+    'breadcrumbs' => [['Home', Seo::home()], [$category['name'], $baseUrl]],
+    'related' => Seo::itemsFromPosts($posts),
+]);
+$pageTitle = $seo['pageTitle'];
+$pageDescription = $seo['pageDescription'];
+$canonicalUrl = $seo['canonicalUrl'];
+$seoMeta = $seo['seoMeta'];
+$ogTags = $seo['ogTags'];
+$twitterTags = $seo['twitterTags'];
+$schemaMarkup = $seo['schemaMarkup'];
 include INCLUDES_PATH . 'Header.php';
 ?>
 <section class="page-header">
