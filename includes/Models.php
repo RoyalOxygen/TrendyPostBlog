@@ -163,6 +163,13 @@ class Post {
         
         $tagJoin = !empty($filters['tag']) ? "LEFT JOIN post_tags pt ON p.id = pt.post_id LEFT JOIN tags t ON pt.tag_id = t.id" : "";
         
+        // Admin lists are strictly date-ordered (newest first) so drafts,
+        // scheduled and published posts interleave by their displayed date.
+        // Frontend keeps sticky posts pinned at the top.
+        $orderBy = $isAdmin
+            ? 'COALESCE(p.published_at, p.created_at) DESC, p.id DESC'
+            : 'p.is_sticky DESC, p.published_at DESC, p.id DESC';
+
         $sql = "SELECT DISTINCT p.*, u.username, u.display_name as author_name, u.avatar as author_avatar,
                        c.name as category_name, c.slug as category_slug, c.color as category_color,
                        COUNT(DISTINCT com.id) as comment_count
@@ -173,7 +180,7 @@ class Post {
                 {$tagJoin}
                 WHERE {$whereClause}
                 GROUP BY p.id
-                ORDER BY p.is_sticky DESC, p.published_at DESC, p.id DESC
+                ORDER BY {$orderBy}
                 LIMIT ? OFFSET ?";
         
         $params[] = $perPage;
