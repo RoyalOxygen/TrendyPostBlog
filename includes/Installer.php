@@ -215,7 +215,7 @@ class Installer
         $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     }
 
-    public static function runSqlFile(PDO $pdo, string $path): void
+    public static function runSqlFile(PDO $pdo, string $path, bool $lenient = false): void
     {
         if (!is_file($path)) {
             throw new RuntimeException('SQL file missing: ' . $path);
@@ -224,10 +224,20 @@ class Installer
         $sql = preg_replace('/^\s*CREATE DATABASE\b.*$/mi', '', $sql) ?? $sql;
         $sql = preg_replace('/^\s*USE\s+[`\w]+;?\s*$/mi', '', $sql) ?? $sql;
         $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-        foreach (self::splitSql($sql) as $stmt) {
-            $pdo->exec($stmt);
+        try {
+            foreach (self::splitSql($sql) as $stmt) {
+                try {
+                    $pdo->exec($stmt);
+                } catch (PDOException $e) {
+                    if ($lenient && self::isIgnorableSqlError($e)) {
+                        continue;
+                    }
+                    throw new RuntimeException('SQL error in ' . basename($path) . ': ' . $e->getMessage(), (int) $e->getCode(), $e);
+                }
+            }
+        } finally {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
         }
-        $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     public static function applyMigrations(PDO $pdo): void
@@ -236,9 +246,49 @@ class Installer
         foreach (['analytics-migration.sql', 'indexing-migration.sql', 'ai-sources.sql'] as $file) {
             $path = $root . 'database/' . $file;
             if (is_file($path)) {
-                self::runSqlFile($pdo, $path);
+                self::runSqlFile($pdo, $path, true);
             }
         }
+        self::ensurePostIngestColumns($pdo);
+    }
+
+    public static function ensurePostIngestColumns(PDO $pdo): void
+    {
+        $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('posts', $tables, true)) {
+            return;
+        }
+        $columns = $pdo->query('SHOW COLUMNS FROM posts')->fetchAll(PDO::FETCH_COLUMN);
+        $needed = [
+            'source_id' => 'INT UNSIGNED DEFAULT NULL',
+            'original_url' => 'VARCHAR(500) DEFAULT NULL',
+            'original_title' => 'VARCHAR(255) DEFAULT NULL',
+        ];
+        foreach ($needed as $name => $def) {
+            if (!in_array($name, $columns, true)) {
+                $pdo->exec('ALTER TABLE posts ADD COLUMN `' . $name . '` ' . $def);
+            }
+        }
+        $indexes = $pdo->query('SHOW INDEX FROM posts')->fetchAll();
+        $indexNames = [];
+        foreach ($indexes as $row) {
+            $indexNames[] = (string) ($row['Key_name'] ?? '');
+        }
+        if (!in_array('idx_original_url', $indexNames, true)) {
+            try {
+                $pdo->exec('ALTER TABLE posts ADD UNIQUE INDEX idx_original_url (original_url)');
+            } catch (PDOException $e) {
+                if (!self::isIgnorableSqlError($e)) {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    private static function isIgnorableSqlError(PDOException $e): bool
+    {
+        $code = (int) ($e->errorInfo[1] ?? 0);
+        return in_array($code, [1050, 1054, 1060, 1061, 1062, 1068, 1091, 1146, 1826], true);
     }
 
     public static function importSchema(PDO $pdo): void

@@ -1,10 +1,6 @@
 -- Extra AI ingest tables for existing TrendyPost databases.
--- Fresh installs already include this in schema.sql.
-
-ALTER TABLE posts
-    ADD COLUMN IF NOT EXISTS source_id INT UNSIGNED DEFAULT NULL AFTER author_id,
-    ADD COLUMN IF NOT EXISTS original_url VARCHAR(500) DEFAULT NULL AFTER source_id,
-    ADD COLUMN IF NOT EXISTS original_title VARCHAR(255) DEFAULT NULL AFTER original_url;
+-- Fresh installs already include this in master_db.sql / schema.sql.
+-- MySQL-compatible: do not use ADD COLUMN IF NOT EXISTS (MariaDB-only).
 
 CREATE TABLE IF NOT EXISTS ai_sources (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -31,6 +27,12 @@ CREATE TABLE IF NOT EXISTS ai_source_logs (
     INDEX idx_source (source_id),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE posts ADD COLUMN source_id INT UNSIGNED DEFAULT NULL;
+ALTER TABLE posts ADD COLUMN original_url VARCHAR(500) DEFAULT NULL;
+ALTER TABLE posts ADD COLUMN original_title VARCHAR(255) DEFAULT NULL;
+ALTER TABLE posts ADD UNIQUE INDEX idx_original_url (original_url);
+ALTER TABLE posts ADD CONSTRAINT fk_posts_source FOREIGN KEY (source_id) REFERENCES ai_sources(id) ON DELETE SET NULL;
 
 INSERT IGNORE INTO permissions (name, display_name, module, description) VALUES
 ('ai.sources', 'Manage AI Sources', 'ai', 'Add source websites and run AI ingest into drafts');
