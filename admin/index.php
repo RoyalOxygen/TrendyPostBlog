@@ -15,6 +15,13 @@ define('ADMIN', true);
 if (!defined('CONFIG_PATH')) {
     require_once __DIR__ . '/../config/config.php';
 }
+if (!class_exists('Installer')) {
+    require_once INCLUDES_PATH . 'Installer.php';
+}
+if (!Installer::isInstalled()) {
+    header('Location: ' . rtrim(BASE_URL, '/') . '/install/');
+    exit;
+}
 if (!class_exists('Database')) {
     require_once INCLUDES_PATH . 'Database.php';
 }

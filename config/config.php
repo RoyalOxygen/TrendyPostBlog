@@ -11,6 +11,11 @@ if (!defined('TRENDYPOST')) {
     define('TRENDYPOST', true);
 }
 
+$localConfig = __DIR__ . '/local.php';
+if (is_file($localConfig)) {
+    require_once $localConfig;
+}
+
 // ============================================================
 // BASE URL CONFIGURATION - CENTRALIZED
 // ============================================================
@@ -26,6 +31,9 @@ $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
 $basePath = dirname($scriptName);
 $basePath = ($basePath == '/' || $basePath == '\\') ? '/' : $basePath . '/';
+if (str_ends_with(rtrim($basePath, '/'), '/install') || rtrim($basePath, '/') === '/install') {
+    $basePath = preg_replace('#/install/?$#', '/', $basePath) ?: '/';
+}
 
 if (getenv('TRENDYPOST_BASE_URL')) {
     define('BASE_URL', rtrim(getenv('TRENDYPOST_BASE_URL'), '/') . '/');
@@ -42,12 +50,24 @@ define('BASE_PATH', '');
 // ============================================================
 // DATABASE CONFIGURATION
 // ============================================================
-define('DB_HOST', getenv('DB_HOST') ?: ($_ENV['DB_HOST'] ?? '127.0.0.1'));
-define('DB_NAME', getenv('DB_NAME') ?: ($_ENV['DB_NAME'] ?? 'trendypost'));
-define('DB_USER', getenv('DB_USER') ?: ($_ENV['DB_USER'] ?? 'trendypost'));
-define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : ($_ENV['DB_PASS'] ?? 'trendypost'));
-define('DB_CHARSET', 'utf8mb4');
-define('DB_COLLATE', 'utf8mb4_unicode_ci');
+if (!defined('DB_HOST')) {
+    define('DB_HOST', getenv('DB_HOST') ?: ($_ENV['DB_HOST'] ?? '127.0.0.1'));
+}
+if (!defined('DB_NAME')) {
+    define('DB_NAME', getenv('DB_NAME') ?: ($_ENV['DB_NAME'] ?? 'trendypost'));
+}
+if (!defined('DB_USER')) {
+    define('DB_USER', getenv('DB_USER') ?: ($_ENV['DB_USER'] ?? 'trendypost'));
+}
+if (!defined('DB_PASS')) {
+    define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : ($_ENV['DB_PASS'] ?? 'trendypost'));
+}
+if (!defined('DB_CHARSET')) {
+    define('DB_CHARSET', 'utf8mb4');
+}
+if (!defined('DB_COLLATE')) {
+    define('DB_COLLATE', 'utf8mb4_unicode_ci');
+}
 
 // ============================================================
 // APPLICATION SETTINGS

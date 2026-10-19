@@ -31,8 +31,8 @@ $newMessages = Database::count('contact_messages', "status = 'new'") ?? 0;
     <nav class="admin-sidebar" id="adminSidebar">
         <div class="sidebar-header">
             <a href="<?php echo admin_url('dashboard'); ?>" class="sidebar-brand">
-                <img src="<?php echo image_url('trendypost-logo.png'); ?>" alt="TrendyPost" height="32" onerror="this.style.display='none';this.parentElement.innerHTML+='<span class=\'fw-bold text-white\'>TP</span>'">
-                <span class="ms-2 fw-bold text-white">TrendyPost</span>
+                <img src="<?php echo esc_attr(site_asset_url(Setting::get('site_logo', 'assets/images/trendypost-logo.png'), image_url('trendypost-logo.png'))); ?>" alt="<?php echo esc_attr(Setting::get('site_name', 'TrendyPost')); ?>" height="32" onerror="this.style.display='none';this.parentElement.innerHTML+='<span class=\'fw-bold text-white\'>TP</span>'">
+                <span class="ms-2 fw-bold text-white"><?php echo esc(Setting::get('site_name', 'TrendyPost')); ?></span>
             </a>
             <button class="btn btn-link sidebar-toggle d-lg-none" id="sidebarToggle"><i class="bi bi-x-lg text-white"></i></button>
         </div>

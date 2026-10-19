@@ -51,6 +51,38 @@ function image_url(string $filename): string {
     return IMAGES_URL . $filename;
 }
 
+function is_hex_color(string $value): bool {
+    return (bool) preg_match('/^#[0-9A-Fa-f]{6}$/', $value);
+}
+
+function site_asset_url(?string $path, string $fallback = ''): string {
+    $path = trim((string) $path);
+    if ($path === '') {
+        return $fallback;
+    }
+    if (preg_match('#^(https?:)?//#i', $path) || str_starts_with($path, 'data:')) {
+        return $path;
+    }
+    $path = ltrim(str_replace('\\', '/', $path), '/');
+    if (defined('ROOT_PATH')) {
+        $abs = ROOT_PATH . $path;
+        if (is_file($abs)) {
+            return rtrim(BASE_URL, '/') . '/' . $path;
+        }
+    }
+    if (str_starts_with($path, 'assets/uploads/')) {
+        return media_url(substr($path, strlen('assets/uploads/')), $fallback);
+    }
+    if (defined('UPLOADS_PATH') && is_file(rtrim(UPLOADS_PATH, '/') . '/' . $path)) {
+        return upload_url($path);
+    }
+    $base = basename($path);
+    if (defined('ASSETS_PATH') && is_file(rtrim(ASSETS_PATH, '/') . '/images/' . $base)) {
+        return image_url($base);
+    }
+    return $fallback !== '' ? $fallback : $path;
+}
+
 /**
  * Generate upload URL
  */

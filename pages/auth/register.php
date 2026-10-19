@@ -1,6 +1,11 @@
 <?php
 if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 if (Auth::check()) { header('Location: ' . admin_url('dashboard')); exit; }
+if (Setting::get('registration_enabled', '1') !== '1') {
+    flash_set('error', 'Registration is currently disabled.');
+    header('Location: ' . url('login'));
+    exit;
+}
 $error = '';
 $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

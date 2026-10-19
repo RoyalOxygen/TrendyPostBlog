@@ -8,6 +8,34 @@
 
 define('TRENDYPOST', true);
 require_once __DIR__ . '/config/config.php';
+require_once INCLUDES_PATH . 'Installer.php';
+
+$uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+if ($basePath === '' || $basePath === '/') {
+    $basePath = '';
+}
+if ($basePath !== '') {
+    $route = substr($uri, strlen($basePath));
+    $route = ltrim($route, '/');
+} else {
+    $route = ltrim($uri, '/');
+}
+$route = explode('?', $route)[0];
+$isInstall = $route === 'install' || str_starts_with($route, 'install/');
+if (!Installer::isInstalled()) {
+    if (!$isInstall) {
+        header('Location: ' . rtrim(BASE_URL, '/') . '/install/');
+        exit;
+    }
+    require ROOT_PATH . 'install/index.php';
+    exit;
+}
+if ($isInstall) {
+    header('Location: ' . BASE_URL);
+    exit;
+}
+
 require_once INCLUDES_PATH . 'Database.php';
 require_once INCLUDES_PATH . 'Helpers.php';
 require_once INCLUDES_PATH . 'Seo.php';
@@ -22,29 +50,19 @@ require_once INCLUDES_PATH . 'PublishSeo.php';
 // Start session and init auth
 Auth::init();
 
-// Parse the request URI
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-
-// Get the base path correctly - FOR ROOT DOMAIN
-$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-if ($basePath === '' || $basePath === '/') {
-    $basePath = '';
-}
-
-// Remove the base path from the URI
-if ($basePath !== '') {
-    $route = substr($uri, strlen($basePath));
-    $route = ltrim($route, '/');
-} else {
-    $route = ltrim($uri, '/');
-}
-
-// Remove query string from route
-$route = explode('?', $route)[0];
-
 // Default homepage
 if (empty($route) || $route === 'index.php') {
     $route = 'home';
+}
+
+if (Setting::get('maintenance_mode', '0') === '1' && !Auth::isEditor()) {
+    $allow = in_array($route, ['login', 'logout', 'forgot-password', 'reset-password'], true);
+    if (!$allow) {
+        http_response_code(503);
+        header('Retry-After: 3600');
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maintenance</title></head><body style="font-family:sans-serif;text-align:center;padding:4rem"><h1>We will be back soon</h1><p>' . esc(Setting::get('site_name', 'TrendyPost')) . ' is undergoing maintenance.</p></body></html>';
+        exit;
+    }
 }
 
 // IMPORTANT: Check if this is an admin route - FIXED for root domain

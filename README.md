@@ -31,48 +31,25 @@ A complete, SEO-first digital publishing platform built with PHP 8+, MySQL 8, Bo
 
 ## Installation
 
-1. **Create the database and import the schema**
+Open the site in a browser. Until `config/installed.lock` exists you are sent to `/install/`.
 
-   ```bash
-   mysql -u root -p -e "CREATE DATABASE trendypost CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-   mysql -u root -p trendypost < database/master_db.sql
-   ```
+The wizard connects to MySQL/MariaDB, creates the database if needed, and:
 
-   `database/master_db.sql` is the full schema with seed data (32 tables, default categories, pages, and the super admin account).
+- **Keeps existing tables and content by default** (applies analytics, indexing, and AI-source migrations only)
+- **Erases and reinstalls** only when you choose that option
+- Writes `config/local.php` (credentials) and `config/installed.lock` — you do not edit `config/config.php`
 
-2. **Configure environment variables** (or edit `config/config.php`):
+Point the web root at this directory and keep `config/`, `assets/uploads/`, `cache/`, and `logs/` writable. See `INSTALL.md` for details.
 
-   ```bash
-   export DB_HOST=127.0.0.1
-   export DB_NAME=trendypost
-   export DB_USER=trendypost
-   export DB_PASS=your-db-password
-   export TRENDYPOST_BASE_URL=https://www.trendypost.com.ng
-   ```
-
-3. **Point the web root at the project directory** and confirm `uploads/` and `cache/` are writable.
-
-4. **Apply migrations on an existing install**
-
-   ```bash
-   mysql -u trendypost -p trendypost < database/analytics-migration.sql
-   mysql -u trendypost -p trendypost < database/indexing-migration.sql
-   ```
-
-5. **Log in** at `/admin` with the seeded account and change the password immediately:
-
-   - Email: `admin@trendypost.com`
-   - Password: `Admin@123`
+After install, log in at `/admin`. Superadmin > Settings controls logo, favicon, colors, and the rest of the public site options.
 
 ## Local Development
 
 ```bash
-# Built-in server with the router (required for clean URLs)
 php -S 0.0.0.0:8000 router.php
-
-# Apply the indexing queue migration to your local DB once
-mysql -u trendypost -p trendypost < database/indexing-migration.sql
 ```
+
+Open `/install/` on a new copy. Existing databases keep their content unless you choose erase.
 
 ## SEO Setup (complete procedure)
 

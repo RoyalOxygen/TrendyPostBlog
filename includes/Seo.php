@@ -63,7 +63,11 @@ class Seo {
         $imageAlt = trim((string) ($o['image_alt'] ?? $title));
         $imageCaption = trim((string) ($o['image_caption'] ?? ''));
         $imageMeta = self::imageMeta($image);
-        $logo = self::absolute((string) (defined('IMAGES_URL') ? IMAGES_URL . 'logo.png' : SEO_DEFAULT_IMAGE));
+        $logoSetting = (string) Setting::get('site_logo', defined('IMAGES_URL') ? 'assets/images/logo.png' : '');
+        $logoUrl = function_exists('site_asset_url')
+            ? site_asset_url($logoSetting, defined('IMAGES_URL') ? IMAGES_URL . 'logo.png' : SEO_DEFAULT_IMAGE)
+            : (defined('IMAGES_URL') ? IMAGES_URL . 'logo.png' : SEO_DEFAULT_IMAGE);
+        $logo = self::absolute((string) $logoUrl);
         if (!is_file(self::localPath($logo))) {
             $logo = self::absolute(SEO_DEFAULT_IMAGE);
         }

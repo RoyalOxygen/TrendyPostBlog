@@ -7,11 +7,12 @@
 
 if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 
-$primaryColor = Setting::get('primary_color', '#00C853');
+$primaryColor = is_hex_color((string) Setting::get('primary_color', '#00C853')) ? Setting::get('primary_color', '#00C853') : '#00C853';
 $social = Setting::getGroup('social');
 $footerAbout = Setting::get('footer_about', '');
 $footerCopyright = Setting::get('footer_copyright', '&copy; 2026 TrendyPost. All rights reserved.');
 $siteName = Setting::get('site_name', 'TrendyPost');
+$footerLogo = site_asset_url(Setting::get('site_logo_footer', '') ?: Setting::get('site_logo', 'assets/images/TrendyPost_Logo_Text_White.png'), image_url('TrendyPost_Logo_Text_White.png'));
 ?>
 
     <!-- Footer Ad -->
@@ -54,7 +55,7 @@ $siteName = Setting::get('site_name', 'TrendyPost');
                 <!-- About Column -->
                 <div class="col-lg-4 col-md-6 mb-4">
                     <h5 class="footer-title mb-3">
-                        <img src="<?php echo image_url('TrendyPost_Logo_Text_White.png'); ?>" alt="<?php echo $siteName; ?>" height="28" width="200"class="mb-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                        <img src="<?php echo esc_attr($footerLogo); ?>" alt="<?php echo esc_attr($siteName); ?>" height="28" class="mb-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
                         <span style="display:none"><?php echo $siteName; ?></span>
                     </h5>
                     <p class="text-white-50" style="font-size: 14px;"><?php echo $footerAbout; ?></p>
@@ -73,6 +74,9 @@ $siteName = Setting::get('site_name', 'TrendyPost');
                         <?php endif; ?>
                         <?php if (!empty($social['social_pinterest'])): ?>
                         <a href="<?php echo $social['social_pinterest']; ?>" class="btn btn-outline-light btn-sm rounded-circle me-2" target="_blank" rel="noopener" style="width:32px;height:32px;padding:0;line-height:32px;font-size:14px;"><i class="bi bi-pinterest"></i></a>
+                        <?php endif; ?>
+                        <?php if (!empty($social['social_tiktok'])): ?>
+                        <a href="<?php echo $social['social_tiktok']; ?>" class="btn btn-outline-light btn-sm rounded-circle me-2" target="_blank" rel="noopener" style="width:32px;height:32px;padding:0;line-height:32px;font-size:14px;"><i class="bi bi-tiktok"></i></a>
                         <?php endif; ?>
                     </div>
                 </div>

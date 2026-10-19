@@ -2,170 +2,91 @@
 
 ## System Requirements
 
-- PHP 8.0 or higher
-- MySQL 8.0 or higher (or MariaDB 10.5+)
-- Apache with mod_rewrite enabled
-- XAMPP / WAMP / MAMP recommended for Windows
+- PHP 8.0 or higher (`pdo_mysql`, `mbstring`, `openssl`, `json`, `curl`; `gd` recommended)
+- MySQL 8.0+ or MariaDB 10.5+
+- Apache with `mod_rewrite`, Nginx, or PHP's built-in server
+- Writable `config/`, `assets/uploads/`, `cache/`, and `logs/`
 
-## Installation Steps
+phpMyAdmin is not required. The frontend installer writes the database config and lock file for you.
 
-### Step 1: Create Database
+## Install from the browser
 
-1. Open phpMyAdmin (http://localhost/phpmyadmin)
-2. Create a new database named `trendypost`
-3. Select utf8mb4_unicode_ci collation
+1. Point the web root at this project.
+2. Open the site. You are redirected to `/install/` until setup finishes.
+3. Complete the wizard:
+   - Requirements check
+   - Database host, name, user, password (the database is created if missing)
+   - If the database already has tables: **Keep existing data** (default) or **Erase everything**
+   - Site name, tagline, email, and superadmin account
+   - Confirm and install
+4. Sign in at `/admin/` and change the password if you used a default account.
 
-### Step 2: Import Database Schema
+Keep existing data unless you explicitly choose erase. Preserve mode applies `database/analytics-migration.sql`, `database/indexing-migration.sql`, and `database/ai-sources.sql` without dropping posts or users.
 
-1. Open phpMyAdmin
-2. Select the `trendypost` database
-3. Go to Import tab
-4. Choose the file: `database/schema.sql`
-5. Click Go/Import
+The installer writes:
 
-### Step 3: Configure Application
+- `config/local.php` — database credentials and generated keys (not committed)
+- `config/installed.lock` — marks the site as installed
 
-1. Copy the project files to your web root:
-   - XAMPP: `C:\xampp\htdocs\trendypost\`
-   - WAMP: `C:\wamp64\www\trendypost\`
+You do not need to edit `config/config.php`.
 
-2. Edit `config/config.php` to set your BASE_URL: 
+## Local development
 
-```php
-// For localhost
-define('BASE_URL', 'http://localhost/trendypost/');
-
-// For production
-define('BASE_URL', 'https://www.yourdomain.com/');
+```bash
+php -S 0.0.0.0:8000 router.php
 ```
 
-3. Set database credentials in `config/config.php`:
+Open `http://localhost:8000/install/` if the lock file is not present.
 
-```php
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'trendypost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+## Optional: environment variables
+
+If you prefer not to use the installer, set:
+
+```bash
+export DB_HOST=127.0.0.1
+export DB_NAME=trendypost
+export DB_USER=trendypost
+export DB_PASS=your-db-password
+export TRENDYPOST_BASE_URL=https://www.yourdomain.com
 ```
 
-### Step 4: Enable mod_rewrite (Apache)
+Then create `config/installed.lock` after importing `database/master_db.sql`.
 
-Ensure the `.htaccess` file is present in the root directory.
+## Folder permissions
 
-For XAMPP, make sure in `httpd.conf`:
-```
-LoadModule rewrite_module modules/mod_rewrite.so
-```
-is uncommented, and for your document root:
-```
-<Directory />
-    AllowOverride All
-</Directory>
+```bash
+chmod 755 assets/uploads cache logs config
 ```
 
-### Step 5: Set Folder Permissions
+## Post-installation
 
-Ensure these directories are writable:
-```
-assets/uploads/  (chmod 755)
-cache/           (chmod 755)
-logs/            (chmod 755)
-```
+1. Change the superadmin password
+2. Admin > Settings: logo, favicon, colors, and remaining site options
+3. Admin > AI Sources: add Gemini API keys if you want publish-time rewrite
+4. Set `APP_ENV=production` on a live host
+5. Enable HTTPS
 
-### Step 6: Access the Application
+## Default seeded account (fresh schema only)
 
-1. Frontend: `http://localhost/trendypost/`
-2. Admin: `http://localhost/trendypost/admin/`
-3. Login with:
-   - Email: `admin@trendypost.com`
-   - Password: `Admin@123`
+| Role | Username | Email | Password |
+|------|----------|-------|----------|
+| Super Admin | admin | admin@trendypost.com | Admin@123 |
 
-### Step 7: Post-Installation Security
-
-1. **Change the default admin password immediately**
-2. Update the encryption keys in `config/config.php`
-3. Set `APP_ENV` to `'production'` when going live
-4. Configure your BASE_URL for production
-5. Set up SSL/HTTPS
-6. Update robots.txt and sitemap settings
-
-## Default User Accounts
-
-| Role | Username | Password |
-|------|----------|----------|
-| Super Admin | admin | Admin@123 |
-
-**IMPORTANT: Change the default password after first login!**
-
-## File Structure
-
-```
-trendypost/
-├── admin/              # Admin Panel
-│   ├── dashboard/      # Dashboard
-│   ├── posts/          # Post Management
-│   ├── categories/     # Category Management
-│   ├── tags/           # Tag Management
-│   ├── pages/          # Page Management
-│   ├── comments/       # Comment Moderation
-│   ├── users/          # User Management
-│   ├── ads/            # Ad Management
-│   ├── seo/            # SEO Settings
-│   ├── analytics/      # Analytics
-│   ├── newsletters/    # Newsletter System
-│   ├── menus/          # Menu Management
-│   ├── media/          # Media Library
-│   ├── settings/       # Site Settings
-│   ├── layout/         # Admin Layout (header/footer)
-│   └── assets/         # Admin CSS/JS
-├── api/                # API Endpoints
-├── assets/             # Frontend Assets
-│   ├── css/            # Theme Stylesheets
-│   ├── js/             # Theme JavaScript
-│   ├── images/         # Theme Images
-│   └── uploads/        # User Uploads
-├── config/             # Configuration
-├── database/           # Database Schema
-├── includes/           # Core Classes
-│   ├── Database.php    # PDO Database Handler
-│   ├── Auth.php        # Authentication & RBAC
-│   ├── Helpers.php     # Helper Functions
-│   ├── Models.php      # Data Models
-│   ├── Header.php      # Theme Header
-│   └── Footer.php      # Theme Footer
-├── pages/              # Frontend Pages
-│   ├── auth/           # Login/Register
-│   ├── errors/         # Error Pages
-│   └── newsletter/     # Newsletter Pages
-├── .htaccess           # Apache Rewrite Rules
-├── index.php           # Front Controller
-└── README.md           # This file
-```
+This account is created only on a wipe or empty database. Change it immediately.
 
 ## Troubleshooting
 
-### 404 Errors on All Pages
-- Ensure mod_rewrite is enabled
-- Check that `.htaccess` file exists
-- Verify AllowOverride All is set in Apache config
+### Redirected to /install/
+`config/installed.lock` is missing. Finish the wizard, or create the lock after a manual import.
 
-### Database Connection Failed
-- Check DB_HOST, DB_NAME, DB_USER, DB_PASS in config.php
-- Ensure MySQL is running
-- Verify the database exists
+### Database connection failed
+Check host, database name, user, and password. Confirm MySQL is running and the user can create the database.
 
-### CSS/JS Not Loading
-- Check BASE_URL is set correctly
-- Ensure file permissions are correct
+### 404 on all pages
+Enable `mod_rewrite` (Apache) or use `php -S 0.0.0.0:8000 router.php`.
 
-### Admin Login Issues
-- Clear browser cookies and cache
-- Verify the users table has the default admin account
-- Check PHP session configuration
-
-## Support
-
-For support, visit: https://trendypost.com/support
+### CSS/JS not loading
+Confirm the site URL in the browser matches the auto-detected `BASE_URL`, or set `TRENDYPOST_BASE_URL`.
 
 ---
 TrendyPost v1.0.0 - Enterprise SEO Blogging Platform

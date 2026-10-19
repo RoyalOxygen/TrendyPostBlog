@@ -11,11 +11,14 @@ if (!defined('TRENDYPOST')) die('Direct access not permitted.');
 // Get site settings
 $siteName = Setting::get('site_name', 'TrendyPost');
 $siteTagline = Setting::get('site_tagline', 'Your Source for Trending News');
-$primaryColor = Setting::get('primary_color', '#00C853');
-$secondaryColor = Setting::get('secondary_color', '#1a1a1a');
+$primaryColor = is_hex_color((string) Setting::get('primary_color', '#00C853')) ? Setting::get('primary_color', '#00C853') : '#00C853';
+$secondaryColor = is_hex_color((string) Setting::get('secondary_color', '#1a1a1a')) ? Setting::get('secondary_color', '#1a1a1a') : '#1a1a1a';
 $social = Setting::getGroup('social');
 $siteEmail = Setting::get('site_email', '');
 $sitePhone = Setting::get('site_phone', '');
+$siteLogo = site_asset_url(Setting::get('site_logo', 'assets/images/TrendyPost_Logo_Text.png'), image_url('TrendyPost_Logo_Text.png'));
+$siteFavicon = site_asset_url(Setting::get('site_favicon', 'assets/images/favicon.ico'), image_url('favicon.ico'));
+$darkMode = Setting::get('dark_mode_enabled', '0') === '1';
 
 // Get breaking news
 $breakingNews = Post::getBreaking(3);
@@ -79,7 +82,8 @@ $currentUser = Auth::user();
     <?php endif; ?>
     
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="<?php echo image_url('favicon.ico'); ?>">
+    <link rel="icon" href="<?php echo esc_attr($siteFavicon); ?>">
+    <style>:root{--tp-primary:<?php echo esc_attr($primaryColor); ?>;--tp-secondary:<?php echo esc_attr($secondaryColor); ?>;}</style>
     
     <!-- Bootstrap 5.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -117,7 +121,7 @@ $currentUser = Auth::user();
     </script>
     <?php endif; ?>
 </head>
-<body>
+<body<?php echo $darkMode ? ' class="tp-dark"' : ''; ?>>
     <?php $gtmBody = trim((string) SEOSetting::get('gtm_container_id', '')); if ($gtmBody): ?>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?php echo esc_attr($gtmBody); ?>"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -144,6 +148,9 @@ $currentUser = Auth::user();
                         <?php if (!empty($social['social_linkedin'])): ?>
                         <a href="<?php echo $social['social_linkedin']; ?>" class="text-white-50 hover-white" target="_blank" rel="noopener"><i class="bi bi-linkedin"></i></a>
                         <?php endif; ?>
+                        <?php if (!empty($social['social_tiktok'])): ?>
+                        <a href="<?php echo $social['social_tiktok']; ?>" class="text-white-50 hover-white" target="_blank" rel="noopener"><i class="bi bi-tiktok"></i></a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="col-md-6 text-end">
@@ -162,7 +169,7 @@ $currentUser = Auth::user();
             <div class="row align-items-center">
                 <div class="col-md-4">
                     <a href="<?php echo url(); ?>" class="text-decoration-none">
-                        <img src="<?php echo image_url('TrendyPost_Logo_Text.png'); ?>" alt="<?php echo $siteName; ?>" class="logo-img" height="45">
+                        <img src="<?php echo esc_attr($siteLogo); ?>" alt="<?php echo esc_attr($siteName); ?>" class="logo-img" height="45">
                     </a>
                 </div>
                 <div class="col-md-4 text-center">

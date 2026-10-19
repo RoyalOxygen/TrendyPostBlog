@@ -129,6 +129,8 @@ assets/uploads/**
 !assets/uploads/.gitkeep
 cache/
 *.lock
+config/local.php
+config/installed.lock
 
 # Dart
 **/.dart_tool/

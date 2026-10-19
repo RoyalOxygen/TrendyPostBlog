@@ -248,6 +248,9 @@ class Auth {
      * Register new user
      */
     public static function register(array $data): array {
+        if (class_exists('Setting') && Setting::get('registration_enabled', '1') !== '1') {
+            return ['success' => false, 'message' => 'Registration is currently disabled.'];
+        }
         // Validate
         if (empty($data['username']) || empty($data['email']) || empty($data['password'])) {
             return ['success' => false, 'message' => 'All fields are required.'];

@@ -342,6 +342,31 @@ class Media
         Database::query("UPDATE users SET avatar = ? WHERE avatar = ?", [$new, $old]);
     }
 
+    public static function fromUpload(array $file, string $folder = 'library', string $alt = '', ?int $userId = null, ?array $allowed = null): ?string
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return null;
+        }
+        $allowed = $allowed ?? ['jpg', 'jpeg', 'png', 'gif', 'webp', 'ico'];
+        $name = preg_replace('/[^a-zA-Z0-9._-]/', '_', (string) ($file['name'] ?? 'file'));
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowed, true)) {
+            return null;
+        }
+        if ((int) ($file['size'] ?? 0) > self::MAX_BYTES) {
+            return null;
+        }
+        $dir = self::ensureDir($folder);
+        $newName = $folder . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        $dest = $dir . '/' . $newName;
+        if (!is_uploaded_file($file['tmp_name']) || !move_uploaded_file($file['tmp_name'], $dest)) {
+            return null;
+        }
+        $relative = $folder . '/' . $newName;
+        self::register($relative, $name, $alt, $userId);
+        return $relative;
+    }
+
     public static function usageCount(string $relative): int
     {
         $relative = self::relativePath($relative);
