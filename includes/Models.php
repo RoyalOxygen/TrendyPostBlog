@@ -995,6 +995,116 @@ class Analytics {
             [$limit]
         );
     }
+
+    /**
+     * Traffic for one author's published posts.
+     *
+     * Views are read from page_views (`post:{id}` keys) for the requested
+     * window, so weekly and monthly numbers are real, deduplicated visits.
+     */
+    public static function getAuthorStats(int $userId, int $days = 30): array {
+        $userId = (int) $userId;
+        $days = max(1, $days);
+        $since = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+
+        $posts = (int) Database::fetchColumn(
+            "SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'published'",
+            [$userId]
+        );
+        $allTime = (int) Database::fetchColumn(
+            "SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND status = 'published'",
+            [$userId]
+        );
+
+        $range = Database::fetchOne(
+            "SELECT COALESCE(SUM(pv.hits), 0) AS views,
+                    COUNT(DISTINCT pv.visitor_hash) AS uniques
+             FROM page_views pv
+             JOIN posts p ON pv.page_key = CONCAT('post:', p.id)
+             WHERE p.author_id = ? AND p.status = 'published' AND pv.date >= ?",
+            [$userId, $since]
+        );
+
+        $topPosts = Database::fetchAll(
+            "SELECT p.id, p.title, p.slug, p.view_count,
+                    COALESCE(SUM(pv.hits), 0) AS period_views
+             FROM posts p
+             LEFT JOIN page_views pv ON pv.page_key = CONCAT('post:', p.id) AND pv.date >= ?
+             WHERE p.author_id = ? AND p.status = 'published'
+             GROUP BY p.id
+             ORDER BY p.view_count DESC, p.published_at DESC
+             LIMIT 10",
+            [$since, $userId]
+        );
+
+        $daily = Database::fetchAll(
+            "SELECT pv.date, SUM(pv.hits) AS views, COUNT(DISTINCT pv.visitor_hash) AS uniques
+             FROM page_views pv
+             JOIN posts p ON pv.page_key = CONCAT('post:', p.id)
+             WHERE p.author_id = ? AND p.status = 'published' AND pv.date >= ?
+             GROUP BY pv.date
+             ORDER BY pv.date ASC",
+            [$userId, $since]
+        );
+
+        return [
+            'posts' => $posts,
+            'all_time_views' => $allTime,
+            'period_days' => $days,
+            'views' => (int) ($range['views'] ?? 0),
+            'uniques' => (int) ($range['uniques'] ?? 0),
+            'top_posts' => $topPosts,
+            'daily' => $daily,
+        ];
+    }
+
+    /**
+     * Weekly, monthly and all-time performance for every active author.
+     */
+    public static function getAuthorsOverview(): array {
+        $rows = Database::fetchAll(
+            "SELECT u.id, u.username, u.display_name, u.avatar, r.display_name AS role_display
+             FROM users u
+             LEFT JOIN roles r ON u.role_id = r.id
+             WHERE u.status = 'active' AND u.role_id IN (1,2,3,4)
+             ORDER BY u.display_name ASC"
+        );
+        $weekSince = date('Y-m-d', strtotime('-6 days'));
+        $monthSince = date('Y-m-d', strtotime('-29 days'));
+
+        foreach ($rows as &$row) {
+            $id = (int) $row['id'];
+            $row['posts'] = (int) Database::fetchColumn(
+                "SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'published'",
+                [$id]
+            );
+            $row['all_time_views'] = (int) Database::fetchColumn(
+                "SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND status = 'published'",
+                [$id]
+            );
+            $row['week'] = self::authorRange($id, $weekSince);
+            $row['month'] = self::authorRange($id, $monthSince);
+        }
+        unset($row);
+
+        usort($rows, static fn($a, $b) => $b['month']['views'] <=> $a['month']['views']);
+        return $rows;
+    }
+
+    private static function authorRange(int $userId, string $since): array {
+        $row = Database::fetchOne(
+            "SELECT COALESCE(SUM(pv.hits), 0) AS views,
+                    COUNT(DISTINCT pv.visitor_hash) AS uniques
+             FROM page_views pv
+             JOIN posts p ON pv.page_key = CONCAT('post:', p.id)
+             WHERE p.author_id = ? AND p.status = 'published' AND pv.date >= ?",
+            [$userId, $since]
+        );
+        return [
+            'views' => (int) ($row['views'] ?? 0),
+            'uniques' => (int) ($row['uniques'] ?? 0),
+        ];
+    }
 }
 
 // ============================================================

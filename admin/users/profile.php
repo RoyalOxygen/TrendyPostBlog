@@ -15,10 +15,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
         exit;
     }
 }
+$weekStats = Analytics::getAuthorStats((int) $user['id'], 7);
+$monthStats = Analytics::getAuthorStats((int) $user['id'], 30);
 $pageTitle = 'My Profile | Admin';
 include ADMIN_PATH . 'layout/header.php';
 ?>
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2"><h4 class="mb-0"><i class="bi bi-person me-2"></i>My Profile</h4></div>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2"><h4 class="mb-0"><i class="bi bi-person me-2"></i>My Profile</h4>
+    <a href="<?php echo admin_url('analytics'); ?>" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up me-1"></i>Site analytics</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><div class="card border-0 h-100"><div class="card-body text-center">
+        <h3 class="mb-1"><?php echo number_format($monthStats['posts']); ?></h3>
+        <p class="text-muted mb-0 small">Published posts</p>
+    </div></div></div>
+    <div class="col-6 col-xl-3"><div class="card border-0 h-100"><div class="card-body text-center">
+        <h3 class="mb-1 text-success"><?php echo number_format($monthStats['all_time_views']); ?></h3>
+        <p class="text-muted mb-0 small">All-time post views</p>
+    </div></div></div>
+    <div class="col-6 col-xl-3"><div class="card border-0 h-100"><div class="card-body text-center">
+        <h3 class="mb-1 text-primary"><?php echo number_format($weekStats['views']); ?></h3>
+        <p class="text-muted mb-0 small">Views (last 7 days)</p>
+        <small class="text-muted"><?php echo number_format($weekStats['uniques']); ?> unique</small>
+    </div></div></div>
+    <div class="col-6 col-xl-3"><div class="card border-0 h-100"><div class="card-body text-center">
+        <h3 class="mb-1 text-info"><?php echo number_format($monthStats['views']); ?></h3>
+        <p class="text-muted mb-0 small">Views (last 30 days)</p>
+        <small class="text-muted"><?php echo number_format($monthStats['uniques']); ?> unique</small>
+    </div></div></div>
+</div>
+<div class="card border-0 mb-4">
+    <div class="card-header bg-white pt-4 px-4 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">My post performance (last 30 days)</h6>
+        <span class="text-muted small"><?php echo number_format($monthStats['uniques']); ?> unique readers</span>
+    </div>
+    <div class="card-body">
+        <?php if (empty($monthStats['top_posts'])): ?>
+        <p class="text-muted mb-0">No published posts yet.</p>
+        <?php else: ?>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Post</th><th class="text-end">Views (30d)</th><th class="text-end">Total views</th><th class="text-end">Status</th></tr></thead>
+            <tbody>
+            <?php foreach ($monthStats['top_posts'] as $sp): ?>
+            <tr>
+                <td><a href="<?php echo post_url($sp['slug']); ?>" target="_blank" class="text-decoration-none"><?php echo esc(mb_strimwidth((string) $sp['title'], 0, 70, '...')); ?></a></td>
+                <td class="text-end"><?php echo number_format((int) $sp['period_views']); ?></td>
+                <td class="text-end"><?php echo number_format((int) $sp['view_count']); ?></td>
+                <td class="text-end"><a href="<?php echo admin_url('posts&action=edit&id=' . (int) $sp['id']); ?>" class="btn btn-sm btn-outline-secondary">Edit</a></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table></div>
+        <?php endif; ?>
+    </div>
+</div>
+
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card border-0"><div class="card-body">

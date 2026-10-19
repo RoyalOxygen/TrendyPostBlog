@@ -270,6 +270,20 @@ function page_view_key(string $route): string {
     if ($route === '' || $route === 'home' || $route === 'index.php') {
         return 'home';
     }
+    // Track articles individually (`post:{id}`) so per-author weekly and
+    // monthly traffic can be attributed to the right writer. Slugs are too
+    // long for the 100-char page_key column, so resolve the post id.
+    if (preg_match('#^post/([^/]+)#', $route, $m)) {
+        try {
+            $row = Database::fetchOne("SELECT id FROM posts WHERE slug = ? LIMIT 1", [$m[1]]);
+            if ($row) {
+                return 'post:' . (int) $row['id'];
+            }
+        } catch (Throwable $e) {
+            return 'post';
+        }
+        return 'other';
+    }
     $segment = explode('/', $route)[0];
     $known = ['post', 'category', 'categories', 'tag', 'tags', 'author', 'authors', 'page', 'archive', 'search', 'contact', 'feed'];
     return in_array($segment, $known, true) ? $segment : 'other';

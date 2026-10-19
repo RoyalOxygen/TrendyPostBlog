@@ -63,6 +63,60 @@ class AiIngest {
         return $results;
     }
 
+    /**
+     * Ingest exactly one article from a pasted URL. No crawling, no source
+     * schedule: the supplied post is extracted and saved as a draft.
+     */
+    public static function ingestSingleUrl(string $url, ?int $authorId = null): array {
+        $url = trim($url);
+        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new RuntimeException('Enter a valid post URL (for example https://example.com/2026/10/18/story/).');
+        }
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            throw new RuntimeException('Only public http(s) post URLs can be ingested.');
+        }
+
+        $existing = Database::fetchOne(
+            "SELECT id, status FROM posts WHERE original_url = ? LIMIT 1",
+            [$url]
+        );
+        if ($existing) {
+            return [
+                'created' => 0,
+                'skipped' => 1,
+                'errors' => 0,
+                'post_id' => (int) $existing['id'],
+                'message' => 'That URL was already ingested (post #' . (int) $existing['id'] . ', ' . $existing['status'] . ').',
+            ];
+        }
+
+        $extracted = self::extractArticle($url);
+        $draft = self::draftFromExtract($extracted);
+        $extracted['cover_image'] = self::storeCoverImage($extracted['cover_image'] ?? null, $extracted['title'] ?? '');
+        $draft['content'] = class_exists('Media')
+            ? Media::localizeHtml((string) ($draft['content'] ?? ''), 'posts')
+            : ($draft['content'] ?? '');
+
+        $postId = self::createDraft(
+            ['id' => null, 'name' => 'Single post URL'],
+            $extracted,
+            $draft,
+            $url,
+            $authorId
+        );
+        self::log(null, 'Single post draft created: ' . $draft['title']);
+
+        return [
+            'created' => 1,
+            'skipped' => 0,
+            'errors' => 0,
+            'post_id' => $postId,
+            'message' => 'Draft created: ' . $draft['title'],
+        ];
+    }
+
     public static function ingestSource(int $sourceId, bool $force = false): array {
         $source = self::getById($sourceId);
         if (!$source) {
@@ -395,7 +449,7 @@ class AiIngest {
         return $row ? (int) $row['id'] : 1;
     }
 
-    private static function createDraft(array $source, array $extracted, array $draft, string $originalUrl): int {
+    private static function createDraft(array $source, array $extracted, array $draft, string $originalUrl, ?int $authorId = null): int {
         $title = decode_entities((string) $draft['title']);
         $content = $draft['content'];
         $excerpt = decode_entities((string) ($draft['excerpt'] ?: excerpt($content)));
@@ -408,8 +462,8 @@ class AiIngest {
             'excerpt' => $excerpt,
             'content' => $content,
             'featured_image' => $extracted['cover_image'] ?? null,
-            'author_id' => self::defaultAuthorId(),
-            'source_id' => (int) $source['id'],
+            'author_id' => $authorId && $authorId > 0 ? $authorId : self::defaultAuthorId(),
+            'source_id' => !empty($source['id']) ? (int) $source['id'] : null,
             'original_url' => $originalUrl,
             'original_title' => $extracted['title'] ?? null,
             'category_id' => $categoryId,
@@ -437,7 +491,7 @@ class AiIngest {
         Database::insert('post_meta', [
             'post_id' => $postId,
             'meta_key' => 'ai_source_name',
-            'meta_value' => $source['name'],
+            'meta_value' => $source['name'] ?? 'Single post URL',
         ]);
 
         return $postId;

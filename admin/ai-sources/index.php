@@ -46,6 +46,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf($_POST['_token'] ?? '')
         exit;
     }
 
+    if ($postAction === 'ingest_url') {
+        $url = trim((string) ($_POST['post_url'] ?? ''));
+        try {
+            $result = AiIngest::ingestSingleUrl($url, (int) (Auth::id() ?? 0));
+            Auth::logActivity('ai_single_ingest', 'Ingested single post URL: ' . $url);
+            if (!empty($result['created'])) {
+                flash_set('success', $result['message'] . ' It is saved as a draft (post #' . (int) $result['post_id'] . ').');
+            } else {
+                flash_set('warning', $result['message']);
+            }
+        } catch (Throwable $e) {
+            flash_set('error', $e->getMessage());
+        }
+        header('Location: ' . admin_url('ai-sources'));
+        exit;
+    }
+
     if ($postAction === 'run') {
         $id = intval($_POST['id'] ?? 0);
         try {
@@ -105,6 +122,22 @@ include ADMIN_PATH . 'layout/header.php';
 
 <div class="row g-4">
     <div class="col-lg-5">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h6 class="text-muted text-uppercase mb-3">Ingest a single post</h6>
+                <form method="POST">
+                    <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+                    <input type="hidden" name="action" value="ingest_url">
+                    <div class="mb-3">
+                        <label class="form-label">Post URL</label>
+                        <input type="url" name="post_url" class="form-control" placeholder="https://politicsnigeria.com/2026/10/18/just-in-peter-obi-will-not-step-down-from-2027-race-for-adc-kwankwaso/" required>
+                        <div class="form-text">Imports only this article as a draft. Links on the page are not crawled and no schedule is created.</div>
+                    </div>
+                    <button class="btn btn-outline-success" type="submit"><i class="bi bi-download me-1"></i>Ingest this post</button>
+                </form>
+            </div>
+        </div>
+
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body">
                 <h6 class="text-muted text-uppercase mb-3">Add source website</h6>
