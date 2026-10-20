@@ -26,6 +26,9 @@ $httpsOn = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (($_SERVER['SERVER_PORT'] ?? 80) == 443)
     || $forwardedProto === 'https'
     || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] !== 'off');
+if (!defined('REQUEST_IS_HTTPS')) {
+    define('REQUEST_IS_HTTPS', $httpsOn);
+}
 $protocol = $httpsOn ? 'https://' : 'http://';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';

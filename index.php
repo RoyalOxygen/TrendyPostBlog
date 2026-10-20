@@ -23,6 +23,38 @@ if ($basePath !== '') {
 }
 $route = explode('?', $route)[0];
 $isInstall = $route === 'install' || str_starts_with($route, 'install/');
+
+$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if (in_array($method, ['GET', 'HEAD'], true)) {
+    $uriPath = is_string($uri) && $uri !== '' ? $uri : '/';
+    $queryString = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_QUERY);
+    $canonicalPath = $uriPath;
+    if ($canonicalPath !== '/' && str_ends_with($canonicalPath, '/') && !$isInstall) {
+        $canonicalPath = rtrim($canonicalPath, '/');
+        if ($canonicalPath === '') {
+            $canonicalPath = '/';
+        }
+    }
+    if (preg_match('#^/index\.php$#i', $canonicalPath)) {
+        $canonicalPath = '/';
+    }
+    $hostHeader = strtolower(preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+    $prodHosts = ['trendypost.com.ng', 'www.trendypost.com.ng'];
+    $isProdHost = in_array($hostHeader, $prodHosts, true);
+    $httpsOn = defined('REQUEST_IS_HTTPS') ? REQUEST_IS_HTTPS : false;
+    $needRedirect = ($canonicalPath !== $uriPath)
+        || ($isProdHost && ($hostHeader !== 'www.trendypost.com.ng' || !$httpsOn));
+    if ($needRedirect) {
+        $dest = ($isProdHost ? 'https://www.trendypost.com.ng' : rtrim(BASE_URL, '/')) . $canonicalPath;
+        if (is_string($queryString) && $queryString !== '') {
+            $dest .= '?' . $queryString;
+        }
+        header('Location: ' . $dest, true, 301);
+        exit;
+    }
+}
+$route = trim($route, '/');
+
 if (!Installer::isInstalled()) {
     if (!$isInstall) {
         header('Location: ' . rtrim(BASE_URL, '/') . '/install/');

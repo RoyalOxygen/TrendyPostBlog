@@ -40,14 +40,25 @@ Options -Indexes
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
+# Canonical host: apex -> www
+RewriteCond %{HTTP_HOST} ^trendypost\.com\.ng$ [NC]
+RewriteRule ^(.*)$ https://www.trendypost.com.ng/$1 [L,R=301]
+
+# Canonical scheme: http -> https (skip if TLS already terminated upstream)
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteCond %{HTTP_HOST} ^(www\.)?trendypost\.com\.ng$ [NC]
+RewriteRule ^(.*)$ https://www.trendypost.com.ng/$1 [L,R=301]
+
+# Strip trailing slashes before the front controller (except real directories)
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} ^(.+)/$
+RewriteRule ^ %1 [L,R=301]
+
 # Route all requests to index.php (Root Domain)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [QSA,L]
-
-# Redirect trailing slashes
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)/$ /$1 [L,R=301]
 
 # Redirect old /trendypost/ URLs to root (optional - for SEO)
 # Uncomment if you had old URLs with /trendypost/
